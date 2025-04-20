@@ -31,6 +31,7 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("chat")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -86,9 +87,44 @@ export default function ChatInterface() {
     }
   }
 
+  const handleFileUpload = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    // Basculer vers l'onglet chat pour que l'utilisateur puisse continuer à discuter
+    setActiveTab("chat")
+
+    // Simuler le téléchargement des fichiers
+    setIsLoading(true)
+
+    // Afficher un message de téléchargement en cours
+    const uploadingMessage: Message = {
+      id: Math.random().toString(36).substring(2, 15),
+      role: "assistant",
+      content: `Téléchargement de ${files.length} fichier(s) en cours...`,
+      timestamp: new Date(),
+    }
+
+    setMessages((prev) => [...prev, uploadingMessage])
+
+    // Simuler un délai de téléchargement
+    setTimeout(() => {
+      setIsLoading(false)
+
+      // Afficher un message de succès
+      const successMessage: Message = {
+        id: Math.random().toString(36).substring(2, 15),
+        role: "assistant",
+        content: `${files.length} fichier(s) téléchargé(s) avec succès. Vous pouvez maintenant me poser des questions sur leur contenu.`,
+        timestamp: new Date(),
+      }
+
+      setMessages((prev) => [...prev, successMessage])
+    }, 2000)
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <Tabs defaultValue="chat" className="h-full" onValueChange={setActiveTab}>
+      <Tabs defaultValue="chat" className="h-full" value={activeTab} onValueChange={setActiveTab}>
         <div className="mb-4 flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="chat" className="flex items-center gap-2">
@@ -156,11 +192,19 @@ export default function ChatInterface() {
 
           {/* Input area */}
           <div className="mt-4 flex items-center gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={(e) => handleFileUpload(e.target.files)}
+              className="hidden"
+              multiple
+              accept=".pdf,.docx,.txt,.json"
+            />
             <Button
               variant="outline"
               size="icon"
               type="button"
-              onClick={() => setActiveTab("files")}
+              onClick={() => fileInputRef.current?.click()}
               title="Télécharger des fichiers"
             >
               <Paperclip className="h-5 w-5" />

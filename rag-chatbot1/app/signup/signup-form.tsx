@@ -37,6 +37,11 @@ export default function SignupForm() {
     }
   }
 
+  function validatePassword(password: string) {
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/
+    return regex.test(password)
+  }
+
   async function handleSubmit(formData: FormData) {
     setIsLoading(true)
     setError(null)
@@ -48,6 +53,15 @@ export default function SignupForm() {
     // Vérifier si les mots de passe correspondent
     if (password !== confirmPassword) {
       setError("Les mots de passe ne correspondent pas")
+      setIsLoading(false)
+      return
+    }
+
+    // Vérification de la complexité du mot de passe
+    if (!validatePassword(password)) {
+      setError(
+        "Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial"
+      )
       setIsLoading(false)
       return
     }
