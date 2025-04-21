@@ -1,14 +1,22 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Send, Paperclip, Bot, User, Loader2, Upload } from "lucide-react"
 import FileUpload from "./file-upload"
 import { cn } from "@/lib/utils"
+
+const ChatMessageTimestamp = ({ timestamp }: { timestamp: Date }) => {
+  const [time, setTime] = useState<string | null>(null)
+
+  useEffect(() => {
+    setTime(new Date(timestamp).toLocaleTimeString())
+  }, [timestamp])
+
+  return <span className="ml-2 text-xs text-slate-500">{time}</span>
+}
 
 interface Message {
   id: string
@@ -33,7 +41,6 @@ export default function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
@@ -41,12 +48,8 @@ export default function ChatInterface() {
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
 
-    // Generate a random ID for the message
-    const userMessageId = Math.random().toString(36).substring(2, 15)
-
-    // Add user message
     const userMessage: Message = {
-      id: userMessageId,
+      id: crypto.randomUUID(),
       role: "user",
       content: input,
       timestamp: new Date(),
@@ -57,28 +60,37 @@ export default function ChatInterface() {
     setIsLoading(true)
 
     try {
-      // In a real application, this would be an API call to your RAG backend
-      // For now, we'll simulate a response after a delay
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const response = await fetch("http://localhost:8000/ask_question/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: input }),
+      })
 
-      // Add assistant response
+      if (!response.ok) {
+        throw new Error("Échec de la requête au backend")
+      }
+
+      const data = await response.json()
+
       const assistantMessage: Message = {
-        id: Math.random().toString(36).substring(2, 15),
+        id: crypto.randomUUID(),
         role: "assistant",
-        content: `Voici une réponse simulée à votre question: "${input}". Dans une implémentation réelle, cette réponse serait générée par le système RAG basé sur vos documents.`,
+        content: data.response || "Je n'ai pas pu trouver une réponse.",
         timestamp: new Date(),
       }
 
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
-      console.error("Error sending message:", error)
-      // Add error message
+      console.error("Erreur lors de l'envoi :", error)
       setMessages((prev) => [
         ...prev,
         {
-          id: Math.random().toString(36).substring(2, 15),
+          id: crypto.randomUUID(),
           role: "assistant",
-          content: "Désolé, une erreur s'est produite lors du traitement de votre demande.",
+          content:
+            "Désolé, une erreur s'est produite lors du traitement de votre demande.",
           timestamp: new Date(),
         },
       ])
@@ -87,44 +99,57 @@ export default function ChatInterface() {
     }
   }
 
-  const handleFileUpload = (files: FileList | null) => {
-    if (!files || files.length === 0) return
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const formData = new FormData()
+      formData.append("file", file)
 
-    // Basculer vers l'onglet chat pour que l'utilisateur puisse continuer à discuter
-    setActiveTab("chat")
+      try {
+        const response = await fetch("http://localhost:8000/upload_file/", {
+          method: "POST",
+          body: formData,
+        })
 
-    // Simuler le téléchargement des fichiers
-    setIsLoading(true)
+        if (!response.ok) {
+          throw new Error("Erreur lors du téléversement du fichier")
+        }
 
-    // Afficher un message de téléchargement en cours
-    const uploadingMessage: Message = {
-      id: Math.random().toString(36).substring(2, 15),
-      role: "assistant",
-      content: `Téléchargement de ${files.length} fichier(s) en cours...`,
-      timestamp: new Date(),
-    }
+        const data = await response.json()
 
-    setMessages((prev) => [...prev, uploadingMessage])
-
-    // Simuler un délai de téléchargement
-    setTimeout(() => {
-      setIsLoading(false)
-
-      // Afficher un message de succès
-      const successMessage: Message = {
-        id: Math.random().toString(36).substring(2, 15),
-        role: "assistant",
-        content: `${files.length} fichier(s) téléchargé(s) avec succès. Vous pouvez maintenant me poser des questions sur leur contenu.`,
-        timestamp: new Date(),
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: `✅ Fichier "${file.name}" téléversé avec succès.`,
+            timestamp: new Date(),
+          },
+        ])
+      } catch (error) {
+        console.error(error)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: `❌ Erreur lors du téléversement du fichier "${file.name}".`,
+            timestamp: new Date(),
+          },
+        ])
       }
-
-      setMessages((prev) => [...prev, successMessage])
-    }, 2000)
+    }
   }
 
   return (
     <div className="flex h-full flex-col">
-      <Tabs defaultValue="chat" className="h-full" value={activeTab} onValueChange={setActiveTab}>
+      <Tabs
+        defaultValue="chat"
+        className="h-full"
+        onValueChange={(value) => setActiveTab(value)}
+      >
         <div className="mb-4 flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="chat" className="flex items-center gap-2">
@@ -139,7 +164,6 @@ export default function ChatInterface() {
         </div>
 
         <TabsContent value="chat" className="flex h-[calc(100%-56px)] flex-col">
-          {/* Chat messages */}
           <div className="flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-4">
             <div className="space-y-4">
               {messages.map((message) => (
@@ -147,13 +171,13 @@ export default function ChatInterface() {
                   key={message.id}
                   className={cn(
                     "flex items-start gap-3 rounded-lg p-4",
-                    message.role === "user" ? "bg-slate-100" : "bg-blue-50",
+                    message.role === "user" ? "bg-slate-100" : "bg-blue-50"
                   )}
                 >
                   <div
                     className={cn(
                       "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                      message.role === "user" ? "bg-slate-300" : "bg-blue-100",
+                      message.role === "user" ? "bg-slate-300" : "bg-blue-100"
                     )}
                   >
                     {message.role === "user" ? (
@@ -164,12 +188,14 @@ export default function ChatInterface() {
                   </div>
                   <div className="flex-1">
                     <div className="mb-1 flex items-center">
-                      <span className="font-medium">{message.role === "user" ? "Vous" : "Assistant"}</span>
-                      <span className="ml-2 text-xs text-slate-500">
-                        {new Date(message.timestamp).toLocaleTimeString()}
+                      <span className="font-medium">
+                        {message.role === "user" ? "Vous" : "Assistant"}
                       </span>
+                      <ChatMessageTimestamp timestamp={message.timestamp} />
                     </div>
-                    <p className="text-slate-700 whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-slate-700 whitespace-pre-wrap">
+                      {message.content}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -190,25 +216,23 @@ export default function ChatInterface() {
             </div>
           </div>
 
-          {/* Input area */}
           <div className="mt-4 flex items-center gap-2">
             <input
               type="file"
               ref={fileInputRef}
-              onChange={(e) => handleFileUpload(e.target.files)}
+              onChange={handleFileUpload}
               className="hidden"
-              multiple
-              accept=".pdf,.docx,.txt,.json"
             />
             <Button
               variant="outline"
               size="icon"
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              title="Télécharger des fichiers"
+              title="Téléverser un fichier"
             >
               <Paperclip className="h-5 w-5" />
             </Button>
+
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}

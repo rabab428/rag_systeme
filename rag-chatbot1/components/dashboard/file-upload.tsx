@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -24,48 +23,53 @@ export default function FileUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (selectedFiles: FileList | null) => {
-    if (!selectedFiles) return
+    if (!selectedFiles || selectedFiles.length === 0) return
 
-    const newFiles: UploadedFile[] = Array.from(selectedFiles).map((file) => ({
+    const file = selectedFiles[0]
+    const newFile: UploadedFile = {
       id: Math.random().toString(36).substring(2, 15),
       name: file.name,
       size: file.size,
       type: file.type,
       progress: 0,
       status: "uploading",
-    }))
+    }
 
-    setFiles((prev) => [...prev, ...newFiles])
-
-    // Simulate file upload for each file
-    newFiles.forEach((newFile) => {
-      simulateFileUpload(newFile.id)
-    })
+    setFiles([newFile]) // remplace l'ancien fichier
+    uploadFile(file, newFile.id)
   }
 
-  const simulateFileUpload = (fileId: string) => {
-    let progress = 0
-    const interval = setInterval(() => {
-      progress += Math.random() * 10
-      if (progress >= 100) {
-        progress = 100
-        clearInterval(interval)
-        setFiles((prev) =>
-          prev.map((file) =>
-            file.id === fileId
-              ? {
-                  ...file,
-                  progress: 100,
-                  status: Math.random() > 0.9 ? "error" : "complete",
-                  error: Math.random() > 0.9 ? "Erreur lors du traitement du fichier" : undefined,
-                }
-              : file,
-          ),
-        )
-      } else {
-        setFiles((prev) => prev.map((file) => (file.id === fileId ? { ...file, progress } : file)))
-      }
-    }, 300)
+  const uploadFile = async (file: File, fileId: string) => {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    try {
+      const response = await fetch("http://127.0.0.1:8000/upload_file", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) throw new Error("Erreur lors de l'envoi")
+
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileId ? { ...f, progress: 100, status: "complete" } : f,
+        ),
+      )
+    } catch (error) {
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileId
+            ? {
+                ...f,
+                progress: 100,
+                status: "error",
+                error: "Erreur lors du traitement du fichier",
+              }
+            : f,
+        ),
+      )
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -84,7 +88,7 @@ export default function FileUpload() {
   }
 
   const removeFile = (fileId: string) => {
-    setFiles((prev) => prev.filter((file) => file.id !== fileId))
+    setFiles([])
   }
 
   const formatFileSize = (bytes: number) => {
@@ -100,7 +104,7 @@ export default function FileUpload() {
       <div className="mb-4">
         <h2 className="text-lg font-semibold">Téléchargement de documents</h2>
         <p className="text-sm text-slate-500">
-          Téléchargez vos documents pour permettre au chatbot de les utiliser comme source d'information.
+          Téléchargez un seul document à la fois. Le nouveau remplacera l'ancien.
         </p>
       </div>
 
@@ -117,18 +121,17 @@ export default function FileUpload() {
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
           <Upload className="h-6 w-6 text-slate-600" />
         </div>
-        <p className="mb-2 text-sm font-medium">Glissez-déposez vos fichiers ici</p>
+        <p className="mb-2 text-sm font-medium">Glissez-déposez votre fichier ici</p>
         <p className="mb-4 text-xs text-slate-500">ou</p>
         <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="mb-2">
-          Sélectionner des fichiers
+          Sélectionner un fichier
         </Button>
-        <p className="text-xs text-slate-500">Formats supportés: PDF, DOCX, TXT, CSV, XLSX (max 10MB)</p>
+        <p className="text-xs text-slate-500">Formats supportés: PDF, DOCX, TXT (max 10MB)</p>
         <input
           type="file"
           ref={fileInputRef}
           onChange={(e) => handleFileChange(e.target.files)}
           className="hidden"
-          multiple
           accept=".pdf,.docx,.txt,.csv,.xlsx"
         />
       </div>
@@ -136,7 +139,7 @@ export default function FileUpload() {
       {/* File list */}
       {files.length > 0 && (
         <div className="mt-6">
-          <h3 className="mb-2 text-sm font-medium">Fichiers ({files.length})</h3>
+          <h3 className="mb-2 text-sm font-medium">Fichier téléchargé</h3>
           <div className="space-y-3">
             {files.map((file) => (
               <div key={file.id} className="flex items-center rounded-lg border border-slate-200 bg-white p-3">
