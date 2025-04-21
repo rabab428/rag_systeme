@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { updateProfile, changePassword } from "@/app/actions/user"
 import { useToast } from "@/components/ui/use-toast"
-import { useRouter } from "next/navigation"
 
 interface User {
   id: string
@@ -21,13 +20,12 @@ interface SettingsFormProps {
 }
 
 export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
-  const [user, setUser] = useState(initialUser)
+  const [user, setUser] = useState<User>(initialUser)
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const { toast } = useToast()
-  const router = useRouter()
 
   async function handleUpdateProfile(formData: FormData) {
     setIsUpdatingProfile(true)
@@ -37,39 +35,25 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
       const result = await updateProfile(formData)
 
       if (result.success) {
+        // Mettre à jour l'état local avec les nouvelles données utilisateur
+        if (result.user) {
+          setUser(result.user)
+        }
+
+        // Afficher le message de succès
         toast({
           title: "Succès",
           description: "Votre profil a été mis à jour avec succès.",
         })
 
-        // Si nous avons besoin de rafraîchir la page pour voir les changements
-        if (result.needsRefresh) {
-          // Mettre à jour l'utilisateur localement si disponible
-          if (result.user) {
-            setUser(result.user)
-          }
-
-          // Rafraîchir la page pour obtenir la nouvelle session après une courte pause
-          setTimeout(() => {
-            window.location.reload()
-          }, 500)
-        }
+        // Forcer un rechargement complet de la page
+        window.location.reload()
       } else {
         setProfileError(result.error || "Une erreur s'est produite")
-        toast({
-          title: "Erreur",
-          description: result.error || "Une erreur s'est produite lors de la mise à jour du profil",
-          variant: "destructive",
-        })
       }
     } catch (error) {
-      const errorMessage = "Une erreur s'est produite lors de la mise à jour du profil"
-      setProfileError(errorMessage)
-      toast({
-        title: "Erreur",
-        description: errorMessage,
-        variant: "destructive",
-      })
+      console.error("Erreur:", error)
+      setProfileError("Une erreur s'est produite lors de la mise à jour du profil")
     } finally {
       setIsUpdatingProfile(false)
     }
@@ -83,6 +67,7 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
       const result = await changePassword(formData)
 
       if (result.success) {
+        // Afficher le message de succès
         toast({
           title: "Succès",
           description: "Votre mot de passe a été changé avec succès.",
@@ -93,20 +78,9 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
         form.reset()
       } else {
         setPasswordError(result.error || "Une erreur s'est produite")
-        toast({
-          title: "Erreur",
-          description: result.error || "Une erreur s'est produite lors du changement de mot de passe",
-          variant: "destructive",
-        })
       }
     } catch (error) {
-      const errorMessage = "Une erreur s'est produite lors du changement de mot de passe"
-      setPasswordError(errorMessage)
-      toast({
-        title: "Erreur",
-        description: errorMessage,
-        variant: "destructive",
-      })
+      setPasswordError("Une erreur s'est produite lors du changement de mot de passe")
     } finally {
       setIsChangingPassword(false)
     }
@@ -145,6 +119,13 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
             <div>
               <p className="font-medium">Réponses détaillées</p>
               <p className="text-sm text-slate-500">Obtenir des réponses plus détaillées du chatbot</p>
+            </div>
+            <Switch defaultChecked />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Citations des sources</p>
+              <p className="text-sm text-slate-500">Inclure les citations des sources dans les réponses</p>
             </div>
             <Switch defaultChecked />
           </div>

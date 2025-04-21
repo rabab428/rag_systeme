@@ -10,16 +10,20 @@ export async function updateProfile(formData: FormData) {
     const lastName = formData.get("lastName") as string
     const email = formData.get("email") as string
 
-    // Récupérer le cookie de session avec await
+    // Récupérer le cookie de session
     const cookieStore = await cookies()
     const sessionCookie = cookieStore.get("session")
 
+    if (!sessionCookie) {
+      return { success: false, error: "Session non trouvée" }
+    }
+
+    // Appeler l'API pour mettre à jour le profil
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/api/user/update-profile`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        // Passer le cookie de session s'il existe
-        ...(sessionCookie ? { Cookie: `session=${sessionCookie.value}` } : {}),
+        Cookie: `session=${sessionCookie.value}`,
       },
       body: JSON.stringify({ firstName, lastName, email }),
     })
@@ -30,13 +34,12 @@ export async function updateProfile(formData: FormData) {
       return { success: false, error: data.error || "Une erreur s'est produite" }
     }
 
-    // Revalider toutes les pages qui pourraient utiliser les données utilisateur
-    revalidatePath("/", "layout") // Revalider toute l'application
-    
-    // Retourner le succès avec needsRefresh pour forcer un rafraîchissement
+    // Revalider les chemins pour forcer le rafraîchissement des données
+    revalidatePath("/dashboard", "layout")
+    revalidatePath("/dashboard/settings")
+
     return {
       success: true,
-      needsRefresh: true,
       user: data.user,
     }
   } catch (error) {
@@ -57,16 +60,19 @@ export async function changePassword(formData: FormData) {
       return { success: false, error: "Les mots de passe ne correspondent pas" }
     }
 
-    // Récupérer le cookie de session avec await
+    // Récupérer le cookie de session
     const cookieStore = await cookies()
     const sessionCookie = cookieStore.get("session")
+
+    if (!sessionCookie) {
+      return { success: false, error: "Session non trouvée" }
+    }
 
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/api/user/change-password`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Passer le cookie de session s'il existe
-        ...(sessionCookie ? { Cookie: `session=${sessionCookie.value}` } : {}),
+        Cookie: `session=${sessionCookie.value}`,
       },
       body: JSON.stringify({ currentPassword, newPassword }),
     })

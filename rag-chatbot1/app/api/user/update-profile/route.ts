@@ -1,6 +1,7 @@
 import { connectToDatabase, User } from "@/lib/mongodb"
 import { getSession } from "@/lib/auth"
 import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
 
 export async function PUT(request: Request) {
   try {
@@ -41,7 +42,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 })
     }
 
-    // Créer un nouvel objet de session avec les informations mises à jour
+    // Mettre à jour la session avec les nouvelles informations
     const updatedSession = {
       ...session,
       user: {
@@ -63,18 +64,16 @@ export async function PUT(request: Request) {
       },
     })
 
-    // Définir explicitement le cookie de session avec les nouvelles informations
-    // Assurez-vous que le cookie est correctement encodé
-    const sessionStr = JSON.stringify(updatedSession)
-    
-    response.cookies.set({
+    // Mettre à jour le cookie de session
+    // Utiliser await avec cookies()
+    const cookieStore = await cookies()
+    cookieStore.set({
       name: "session",
-      value: sessionStr,
+      value: JSON.stringify(updatedSession),
       httpOnly: true,
       path: "/",
       secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 7, // 1 semaine
-      sameSite: "lax",
     })
 
     return response
@@ -83,3 +82,6 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }
+
+
+
