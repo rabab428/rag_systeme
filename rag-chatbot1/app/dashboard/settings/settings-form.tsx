@@ -124,13 +124,6 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium">Citations des sources</p>
-              <p className="text-sm text-slate-500">Inclure les citations des sources dans les réponses</p>
-            </div>
-            <Switch defaultChecked />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
               <p className="font-medium">Historique des conversations</p>
               <p className="text-sm text-slate-500">Sauvegarder l'historique des conversations</p>
             </div>
