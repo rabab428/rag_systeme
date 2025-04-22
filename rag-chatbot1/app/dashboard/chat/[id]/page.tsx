@@ -3,17 +3,26 @@ import { redirect } from "next/navigation"
 import DashboardLayout from "@/components/dashboard/layout"
 import ChatInterface from "@/components/dashboard/chat-interface"
 
-export default async function Dashboard() {
+interface ChatPageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function ChatPage({ params }: ChatPageProps) {
   const session = await getSession()
 
   if (!session) {
     redirect("/login")
   }
 
+  // Attendre l'objet params complet
+  const { id } = await params
+
   return (
     <DashboardLayout user={session.user}>
-      <ChatInterface />
+      <ChatInterface conversationId={id} />
     </DashboardLayout>
   )
 }
+
+
 

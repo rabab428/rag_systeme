@@ -290,7 +290,7 @@ async def upload_file(file: UploadFile = File(...)):
         docs_collection.insert_one(doc_data)
 
 
-        last_uploaded_filename = file.filename  # ⬅️ On enregistre ici le dernier fichier
+        last_uploaded_filename = file.filename  # ⬅ On enregistre ici le dernier fichier
 
         # 6. Création du vecteur store avec nom de collection sécurisé
         embeddings = OllamaEmbeddings(model="yxchia/multilingual-e5-base")
@@ -329,7 +329,7 @@ async def ask_question(data: QuestionRequest):
     if VECTOR_DB is None:
         raise HTTPException(status_code=400, detail="Aucun document chargé.")
 
-    # 1️⃣ Détection des questions sur le titre
+    # 1️ Détection des questions sur le titre
     title_keywords = [
     # Français
     "titre",
@@ -347,7 +347,7 @@ async def ask_question(data: QuestionRequest):
     is_title_question = any(keyword in question.lower() for keyword in title_keywords)
 
     try:
-        llm = ChatOllama(model="llama3.2:latest")
+        llm = ChatOllama(model="llama3.2")
         retriever = VECTOR_DB.as_retriever()
 
         # 2️⃣ Prompt spécial pour les titres

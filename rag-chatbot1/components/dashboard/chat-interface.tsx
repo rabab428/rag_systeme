@@ -1,12 +1,16 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from "react"
+import type React from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Send, Paperclip, Bot, User, Loader2, Upload } from "lucide-react"
+import { Send, Paperclip, Bot, User, Loader2, Upload, PlusCircle } from "lucide-react"
 import FileUpload from "./file-upload"
 import { cn } from "@/lib/utils"
+import { chatService } from "@/lib/api-service"
+import { useToast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
 
 const ChatMessageTimestamp = ({ timestamp }: { timestamp: Date }) => {
   const [time, setTime] = useState<string | null>(null)
@@ -25,25 +29,109 @@ interface Message {
   timestamp: Date
 }
 
-export default function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content:
-        "Bonjour ! Je suis votre assistant RAG. Je peux répondre à vos questions basées sur vos documents. Commencez par télécharger des fichiers ou posez-moi directement une question.",
-      timestamp: new Date(),
-    },
-  ])
+interface ChatInterfaceProps {
+  conversationId?: string
+}
+
+export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("chat")
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const [currentConversationId, setCurrentConversationId] = useState<string | undefined>(conversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { toast } = useToast()
+  const router = useRouter()
 
+  // Charger les messages de la conversation si un ID est fourni
+  useEffect(() => {
+    if (conversationId) {
+      setCurrentConversationId(conversationId)
+      fetchConversation(conversationId)
+    } else {
+      // Message de bienvenue par défaut pour une nouvelle conversation
+      setMessages([
+        {
+          id: "welcome",
+          role: "assistant",
+          content:
+            "Bonjour ! Je suis votre assistant RAG. Je peux répondre à vos questions basées sur vos documents. Commencez par télécharger des fichiers ou posez-moi directement une question.",
+          timestamp: new Date(),
+        },
+      ])
+      setIsInitialLoad(false)
+    }
+  }, [conversationId])
+
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  const fetchConversation = async (id: string) => {
+    try {
+      setIsLoading(true)
+      const data = await chatService.getConversation(id)
+
+      if (data.conversation && data.conversation.messages) {
+        setMessages(
+          data.conversation.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp),
+          })),
+        )
+      }
+    } catch (error) {
+      console.error("Error fetching conversation:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger la conversation.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+      setIsInitialLoad(false)
+    }
+  }
+
+  const createNewConversation = async () => {
+    try {
+      const data = await chatService.createConversation()
+      router.push(`/dashboard/chat/${data.conversation.id}`)
+    } catch (error) {
+      console.error("Error creating new conversation:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de créer une nouvelle conversation.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Fonction pour créer une nouvelle conversation et y ajouter un message
+  const createConversationWithMessage = async (message: Message) => {
+    try {
+      // Créer une nouvelle conversation
+      const data = await chatService.createConversation()
+      const newConversationId = data.conversation.id
+
+      // Ajouter le message à la nouvelle conversation
+      await chatService.addMessageToConversation(newConversationId, message)
+
+      // Mettre à jour l'ID de conversation actuel
+      setCurrentConversationId(newConversationId)
+
+      // Rediriger vers la nouvelle conversation
+      router.push(`/dashboard/chat/${newConversationId}`)
+
+      return newConversationId
+    } catch (error) {
+      console.error("Error creating conversation with message:", error)
+      throw error
+    }
+  }
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
@@ -60,7 +148,19 @@ export default function ChatInterface() {
     setIsLoading(true)
 
     try {
-      const response = await fetch("http://localhost:8000/ask_question/", {
+      // Si nous n'avons pas d'ID de conversation, créer une nouvelle conversation
+      if (!currentConversationId) {
+        const newId = await createConversationWithMessage(userMessage)
+        setCurrentConversationId(newId)
+        // La page va se recharger, donc on arrête l'exécution ici
+        return
+      } else {
+        // Sauvegarder le message de l'utilisateur dans la conversation existante
+        await chatService.addMessageToConversation(currentConversationId, userMessage)
+      }
+
+      // Envoyer la question au backend FastAPI
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/ask_question/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -82,74 +182,101 @@ export default function ChatInterface() {
       }
 
       setMessages((prev) => [...prev, assistantMessage])
+
+      // Sauvegarder la réponse de l'assistant dans la conversation
+      if (currentConversationId) {
+        await chatService.addMessageToConversation(currentConversationId, assistantMessage)
+      }
     } catch (error) {
       console.error("Erreur lors de l'envoi :", error)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content:
-            "Désolé, une erreur s'est produite lors du traitement de votre demande.",
-          timestamp: new Date(),
-        },
-      ])
+
+      const errorMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "Désolé, une erreur s'est produite lors du traitement de votre demande.",
+        timestamp: new Date(),
+      }
+
+      setMessages((prev) => [...prev, errorMessage])
+
+      if (currentConversationId) {
+        await chatService.addMessageToConversation(currentConversationId, errorMessage).catch(console.error)
+      }
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      const formData = new FormData()
-      formData.append("file", file)
+    if (!file) return
 
-      try {
-        const response = await fetch("http://localhost:8000/upload_file/", {
-          method: "POST",
-          body: formData,
-        })
+    const formData = new FormData()
+    formData.append("file", file)
 
-        if (!response.ok) {
-          throw new Error("Erreur lors du téléversement du fichier")
-        }
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/upload_file/`, {
+        method: "POST",
+        body: formData,
+      })
 
-        const data = await response.json()
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: `✅ Fichier "${file.name}" téléversé avec succès.`,
-            timestamp: new Date(),
-          },
-        ])
-      } catch (error) {
-        console.error(error)
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: `❌ Erreur lors du téléversement du fichier "${file.name}".`,
-            timestamp: new Date(),
-          },
-        ])
+      if (!response.ok) {
+        throw new Error("Erreur lors du téléversement du fichier")
       }
+
+      const data = await response.json()
+
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `Fichier "${file.name}" téléversé avec succès.`,
+        timestamp: new Date(),
+      }
+
+      setMessages((prev) => [...prev, assistantMessage])
+
+      // Si nous n'avons pas d'ID de conversation, créer une nouvelle conversation
+      if (!currentConversationId) {
+        const newId = await createConversationWithMessage(assistantMessage)
+        setCurrentConversationId(newId)
+      } else {
+        // Sauvegarder le message dans la conversation existante
+        await chatService.addMessageToConversation(currentConversationId, assistantMessage)
+      }
+    } catch (error) {
+      console.error(error)
+
+      const errorMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `Erreur lors du téléversement du fichier "${file.name}".`,
+        timestamp: new Date(),
+      }
+
+      setMessages((prev) => [...prev, errorMessage])
+
+      if (currentConversationId) {
+        await chatService.addMessageToConversation(currentConversationId, errorMessage).catch(console.error)
+      }
+    }
+
+    // Réinitialiser l'input file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
     }
   }
 
   return (
     <div className="flex h-full flex-col">
-      <Tabs
-        defaultValue="chat"
-        className="h-full"
-        onValueChange={(value) => setActiveTab(value)}
-      >
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-bold">{currentConversationId ? "Conversation" : "Nouvelle conversation"}</h1>
+        <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={createNewConversation}>
+          <PlusCircle className="h-4 w-4" />
+          Nouvelle conversation
+        </Button>
+      </div>
+
+      <Tabs defaultValue="chat" className="h-full" onValueChange={(value) => setActiveTab(value)}>
         <div className="mb-4 flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="chat" className="flex items-center gap-2">
@@ -165,64 +292,61 @@ export default function ChatInterface() {
 
         <TabsContent value="chat" className="flex h-[calc(100%-56px)] flex-col">
           <div className="flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-4">
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex items-start gap-3 rounded-lg p-4",
-                    message.role === "user" ? "bg-slate-100" : "bg-blue-50"
-                  )}
-                >
+            {isInitialLoad && conversationId ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {messages.map((message) => (
                   <div
+                    key={message.id}
                     className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                      message.role === "user" ? "bg-slate-300" : "bg-blue-100"
+                      "flex items-start gap-3 rounded-lg p-4",
+                      message.role === "user" ? "bg-slate-100" : "bg-blue-50",
                     )}
                   >
-                    {message.role === "user" ? (
-                      <User className="h-5 w-5 text-slate-600" />
-                    ) : (
-                      <Bot className="h-5 w-5 text-blue-600" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="mb-1 flex items-center">
-                      <span className="font-medium">
-                        {message.role === "user" ? "Vous" : "Assistant"}
-                      </span>
-                      <ChatMessageTimestamp timestamp={message.timestamp} />
+                    <div
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                        message.role === "user" ? "bg-slate-300" : "bg-blue-100",
+                      )}
+                    >
+                      {message.role === "user" ? (
+                        <User className="h-5 w-5 text-slate-600" />
+                      ) : (
+                        <Bot className="h-5 w-5 text-blue-600" />
+                      )}
                     </div>
-                    <p className="text-slate-700 whitespace-pre-wrap">
-                      {message.content}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {isLoading && (
-                <div className="flex items-center gap-3 rounded-lg bg-blue-50 p-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
-                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="mb-1">
-                      <span className="font-medium">Assistant</span>
+                    <div className="flex-1">
+                      <div className="mb-1 flex items-center">
+                        <span className="font-medium">{message.role === "user" ? "Vous" : "Assistant"}</span>
+                        <ChatMessageTimestamp timestamp={message.timestamp} />
+                      </div>
+                      <p className="text-slate-700 whitespace-pre-wrap">{message.content}</p>
                     </div>
-                    <p className="text-slate-700">En train de réfléchir...</p>
                   </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+                ))}
+                {isLoading && (
+                  <div className="flex items-center gap-3 rounded-lg bg-blue-50 p-4">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="mb-1">
+                        <span className="font-medium">Assistant</span>
+                      </div>
+                      <p className="text-slate-700">En train de réfléchir...</p>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
           </div>
 
           <div className="mt-4 flex items-center gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-            />
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
             <Button
               variant="outline"
               size="icon"

@@ -4,7 +4,7 @@ const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/ragbot
 
 // Étend la déclaration de `global` pour y ajouter un cache proprement typé
 declare global {
-  // Cela évite l’erreur TS lorsqu’on ajoute une propriété custom à `global`
+  // Cela évite l'erreur TS lorsqu'on ajoute une propriété custom à `global`
   var _mongoose: {
     conn: typeof mongoose | null
     promise: Promise<typeof mongoose> | null
@@ -16,7 +16,7 @@ if (!global._mongoose) {
   global._mongoose = { conn: null, promise: null }
 }
 
-let cached = global._mongoose
+const cached = global._mongoose
 
 export async function connectToDatabase(): Promise<typeof mongoose> {
   if (cached.conn) {
@@ -41,7 +41,7 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
   return cached.conn
 }
 
-
+// Définition du schéma utilisateur
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -70,5 +70,8 @@ const userSchema = new mongoose.Schema({
   },
 })
 
-// Vérifie si le modèle existe déjà (évite l'erreur de redéfinition)
+// Création du modèle utilisateur
 export const User = mongoose.models.User || mongoose.model("User", userSchema)
+
+// Export Conversation model
+export { Conversation } from "@/lib/models/conversation"
