@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { updateProfile, changePassword } from "@/app/actions/user"
-import { useToast } from "@/components/ui/use-toast"
 
 interface User {
   id: string
@@ -19,13 +18,22 @@ interface SettingsFormProps {
   user: User
 }
 
+function CustomAlert({ message }: { message: string }) {
+  return (
+    <div className="rounded-md bg-green-50 p-4 text-sm text-green-800">
+      {message}
+    </div>
+  )
+}
+
 export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
   const [user, setUser] = useState<User>(initialUser)
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
-  const { toast } = useToast()
+  const [profileSuccessMessage, setProfileSuccessMessage] = useState<string | null>(null)
+  const [passwordSuccessMessage, setPasswordSuccessMessage] = useState<string | null>(null)
 
   async function handleUpdateProfile(formData: FormData) {
     setIsUpdatingProfile(true)
@@ -40,14 +48,9 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
           setUser(result.user)
         }
 
-        // Afficher le message de succès
-        toast({
-          title: "Succès",
-          description: "Votre profil a été mis à jour avec succès.",
-        })
+        // Afficher un message de succès pour la section Profil
+        setProfileSuccessMessage("Votre profil a été mis à jour avec succès.")
 
-        // Forcer un rechargement complet de la page
-        window.location.reload()
       } else {
         setProfileError(result.error || "Une erreur s'est produite")
       }
@@ -67,11 +70,8 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
       const result = await changePassword(formData)
 
       if (result.success) {
-        // Afficher le message de succès
-        toast({
-          title: "Succès",
-          description: "Votre mot de passe a été changé avec succès.",
-        })
+        // Afficher un message de succès pour la section Mot de passe
+        setPasswordSuccessMessage("Votre mot de passe a été changé avec succès.")
 
         // Réinitialiser le formulaire
         const form = document.getElementById("password-form") as HTMLFormElement
@@ -91,6 +91,7 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-lg font-medium">Profil utilisateur</h2>
         {profileError && <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800">{profileError}</div>}
+        {profileSuccessMessage && <CustomAlert message={profileSuccessMessage} />}
         <form action={handleUpdateProfile} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -135,6 +136,7 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-lg font-medium">Sécurité</h2>
         {passwordError && <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800">{passwordError}</div>}
+        {passwordSuccessMessage && <CustomAlert message={passwordSuccessMessage} />}
         <form id="password-form" action={handleChangePassword} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="currentPassword">Mot de passe actuel</Label>
@@ -156,4 +158,3 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
     </div>
   )
 }
-
