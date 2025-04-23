@@ -248,7 +248,7 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `Fichier "${file.name}" téléversé avec succès.`,
+        content: `✔️ Fichier "${file.name}" téléversé avec succès.`,
         timestamp: new Date(),
       }
 
@@ -268,7 +268,7 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
       const errorMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `Erreur lors du téléversement du fichier "${file.name}".`,
+        content: `❌ Erreur lors du téléversement du fichier "${file.name}".`,
         timestamp: new Date(),
       }
 
