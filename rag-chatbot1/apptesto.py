@@ -20,6 +20,9 @@ import nltk
 nltk.download('averaged_perceptron_tagger')
 from datetime import datetime  
 import traceback
+from bson.binary import Binary  
+import base64
+
 
 # Logger
 logging.basicConfig(level=logging.INFO)
@@ -232,13 +235,19 @@ def detect_document_title(text: str, max_lines: int = 3) -> str:
 
 
 
+from fastapi import Form  # ⬅️ Nécessaire pour récupérer user_id via POST
+
+from bson.binary import Binary  # ✅ à importer en haut de ton fichier
+
 @app.post("/upload_file/")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    user_id: str = Form(...)  # ⬅️ On récupère user_id depuis le frontend
+):
     global VECTOR_DB
+    global last_uploaded_filename
 
-    global last_uploaded_filename  #variable globale pour le dernier fichier 
-
-    logger.info(f"Traitement du fichier: {file.filename}")
+    logger.info(f"Traitement du fichier: {file.filename} pour user_id: {user_id}")
 
     try:
         # 1. Sauvegarde temporaire
@@ -260,15 +269,13 @@ async def upload_file(file: UploadFile = File(...)):
         elif file.filename.endswith(".json"):
             text = extract_text_from_json(file_path)
         else:
-            raise HTTPException(400, "Format non supporté.  Veuillez uploader un PDF, DOCX, TXT ou JSON.")
+            raise HTTPException(400, "Format non supporté. Veuillez uploader un PDF, DOCX, TXT ou JSON.")
 
         if not text.strip():
             raise HTTPException(400, "Fichier vide ou texte non extractible")
 
-
-        # 3. Détection du titre avec la fonction externe
+        # 3. Détection du titre
         title = detect_document_title(text, max_lines=3)
-    
         logger.info(f"Titre détecté : {title}")
 
         # 4. Découpage du texte
@@ -279,20 +286,25 @@ async def upload_file(file: UploadFile = File(...)):
         )
         chunks = text_splitter.split_text(text)
 
-        # 5. Stockage MongoDB
+        # ✅ 5. Lecture du fichier binaire
+        with open(file_path, "rb") as f:
+            file_binary = Binary(f.read())  # 👈 fichier encodé en binaire
+
+        # ✅ 6. Stockage MongoDB avec fichier binaire
         doc_data = {
+            "user_id": user_id,
             "filename": file.filename,
             "title": title,
             "text": text,
             "chunks": chunks,
+            "file_data": file_binary,  # 👈 fichier stocké en binaire
             "timestamp": datetime.now()
         }
         docs_collection.insert_one(doc_data)
 
+        last_uploaded_filename = file.filename
 
-        last_uploaded_filename = file.filename  # ⬅ On enregistre ici le dernier fichier
-
-        # 6. Création du vecteur store avec nom de collection sécurisé
+        # 7. Création du vecteur store
         embeddings = OllamaEmbeddings(model="yxchia/multilingual-e5-base")
         collection_name = sanitize_collection_name(file.filename)
         
@@ -315,6 +327,7 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Erreur: {traceback.format_exc()}")
         raise HTTPException(500, f"Erreur de traitement: {str(e)}")
+
  
 from pydantic import BaseModel
 
@@ -329,7 +342,7 @@ async def ask_question(data: QuestionRequest):
     if VECTOR_DB is None:
         raise HTTPException(status_code=400, detail="Aucun document chargé.")
 
-    # 1️ Détection des questions sur le titre
+    # 1️⃣ Détection des questions sur le titre
     title_keywords = [
     # Français
     "titre",
@@ -347,7 +360,7 @@ async def ask_question(data: QuestionRequest):
     is_title_question = any(keyword in question.lower() for keyword in title_keywords)
 
     try:
-        llm = ChatOllama(model="llama3.2")
+        llm = ChatOllama(model="llama3.2:latest")
         retriever = VECTOR_DB.as_retriever()
 
         # 2️⃣ Prompt spécial pour les titres
@@ -424,22 +437,36 @@ Instructions strictes :
 
 
 
-
-
 @app.get("/documents/")
-async def list_documents():
+async def list_documents(user_id: str):
     """
-    Liste les documents stockés dans MongoDB.
+    Liste les documents d'un utilisateur spécifique avec les champs filename, file_data et timestamp.
     """
     try:
-        documents = list(docs_collection.find({}, {"_id": 0, "filename": 1, "title": 1}))
+        # Récupère les documents filtrés par user_id
+        documents_cursor = docs_collection.find(
+            {"user_id": user_id},
+            {"_id": 0, "filename": 1, "file_data": 1, "timestamp": 1}
+        )
+
+        documents = []
+        for doc in documents_cursor:
+            # Encodage en base64 pour rendre les données binaires lisibles (JSON ne supporte pas le binaire brut)
+            file_data_base64 = base64.b64encode(doc["file_data"]).decode("utf-8")
+            documents.append({
+                "filename": doc["filename"],
+                "file_data": file_data_base64,
+                "timestamp": doc["timestamp"].isoformat() if doc["timestamp"] else None
+            })
+
+        if not documents:
+            raise HTTPException(status_code=404, detail="Aucun document trouvé pour cet utilisateur.")
+
         return {"documents": documents}
+
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des documents: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
-
-
-
 
 
 

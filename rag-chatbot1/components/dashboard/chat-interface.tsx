@@ -44,7 +44,8 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const router = useRouter()
-
+  const [userId, setUserId] = useState<string | null>(null)
+  
   // Charger les messages de la conversation si un ID est fourni
   useEffect(() => {
     if (conversationId) {
@@ -207,64 +208,69 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+ 
 
-    const formData = new FormData()
-    formData.append("file", file)
 
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/upload_file/`, {
-        method: "POST",
-        body: formData,
-      })
 
-      if (!response.ok) {
-        throw new Error("Erreur lors du téléversement du fichier")
+
+
+
+  useEffect(() => {
+      const fetchUserId = async () => {
+        try {
+          const res = await fetch("/api/me")
+          if (!res.ok) return
+          const data = await res.json()
+          if (data.user?.id) setUserId(data.user.id)
+        } catch (err) {
+          console.error("Erreur lors de la récupération du user_id :", err)
+        }
       }
+      fetchUserId()
+    }, [])
 
-      const data = await response.json()
 
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `Fichier "${file.name}" téléversé avec succès.`,
-        timestamp: new Date(),
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
-
-      // Si nous n'avons pas d'ID de conversation, créer une nouvelle conversation
-      if (!currentConversationId) {
-        const newId = await createConversationWithMessage(assistantMessage)
-        setCurrentConversationId(newId)
-      } else {
-        // Sauvegarder le message dans la conversation existante
-        await chatService.addMessageToConversation(currentConversationId, assistantMessage)
-      }
-    } catch (error) {
-      console.error(error)
-
-      const errorMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `Erreur lors du téléversement du fichier "${file.name}".`,
-        timestamp: new Date(),
-      }
-
-      setMessages((prev) => [...prev, errorMessage])
-
-      if (currentConversationId) {
-        await chatService.addMessageToConversation(currentConversationId, errorMessage).catch(console.error)
+    const handleFileUpload = async (
+      event: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file = event.target.files?.[0]
+      if (!file || !userId) return alert("Fichier ou ID utilisateur manquant.")
+  
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("user_id", userId)
+  
+      try {
+        const res = await fetch("http://localhost:8000/upload_file/", {
+          method: "POST",
+          body: formData,
+        })
+  
+        if (!res.ok) throw new Error("Erreur upload")
+  
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: `✔️ Fichier "${file.name}" téléversé avec succès.`,
+            timestamp: new Date(),
+          },
+        ])
+      } catch (err) {
+        console.error(err)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: `❌ Erreur lors du téléversement de "${file.name}".`,
+            timestamp: new Date(),
+          },
+        ])
       }
     }
 
-    // Réinitialiser l'input file
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
-  }
 
   return (
     <div className="flex h-full flex-col">
