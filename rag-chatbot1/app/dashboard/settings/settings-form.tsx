@@ -1,21 +1,22 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { updateProfile, changePassword } from "@/app/actions/user"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { updateProfile, changePassword } from "@/app/actions/user";
 
 interface User {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
 }
 
 interface SettingsFormProps {
-  user: User
+  user: User;
 }
 
 function CustomAlert({ message }: { message: string }) {
@@ -23,66 +24,59 @@ function CustomAlert({ message }: { message: string }) {
     <div className="rounded-md bg-green-50 p-4 text-sm text-green-800">
       {message}
     </div>
-  )
+  );
 }
 
-export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
-  const [user, setUser] = useState<User>(initialUser)
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
-  const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const [profileError, setProfileError] = useState<string | null>(null)
-  const [passwordError, setPasswordError] = useState<string | null>(null)
-  const [profileSuccessMessage, setProfileSuccessMessage] = useState<string | null>(null)
-  const [passwordSuccessMessage, setPasswordSuccessMessage] = useState<string | null>(null)
+export default function SettingsForm({ user }: SettingsFormProps) {
+  const router = useRouter();
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [profileSuccessMessage, setProfileSuccessMessage] = useState<string | null>(null);
+  const [passwordSuccessMessage, setPasswordSuccessMessage] = useState<string | null>(null);
 
   async function handleUpdateProfile(formData: FormData) {
-    setIsUpdatingProfile(true)
-    setProfileError(null)
+    setIsUpdatingProfile(true);
+    setProfileError(null);
 
     try {
-      const result = await updateProfile(formData)
+      const result = await updateProfile(formData);
 
       if (result.success) {
-        // Mettre à jour l'état local avec les nouvelles données utilisateur
-        if (result.user) {
-          setUser(result.user)
-        }
-
-        // Afficher un message de succès pour la section Profil
-        setProfileSuccessMessage("Votre profil a été mis à jour avec succès.")
-
+        // Rafraîchir la page pour avoir les nouvelles données
+        router.refresh();
+        setProfileSuccessMessage("Votre profil a été mis à jour avec succès.");
       } else {
-        setProfileError(result.error || "Une erreur s'est produite")
+        setProfileError(result.error || "Une erreur s'est produite");
       }
     } catch (error) {
-      console.error("Erreur:", error)
-      setProfileError("Une erreur s'est produite lors de la mise à jour du profil")
+      console.error("Erreur:", error);
+      setProfileError("Une erreur s'est produite lors de la mise à jour du profil");
     } finally {
-      setIsUpdatingProfile(false)
+      setIsUpdatingProfile(false);
     }
   }
 
   async function handleChangePassword(formData: FormData) {
-    setIsChangingPassword(true)
-    setPasswordError(null)
+    setIsChangingPassword(true);
+    setPasswordError(null);
 
     try {
-      const result = await changePassword(formData)
+      const result = await changePassword(formData);
 
       if (result.success) {
-        // Afficher un message de succès pour la section Mot de passe
-        setPasswordSuccessMessage("Votre mot de passe a été changé avec succès.")
-
-        // Réinitialiser le formulaire
-        const form = document.getElementById("password-form") as HTMLFormElement
-        form.reset()
+        setPasswordSuccessMessage("Votre mot de passe a été changé avec succès.");
+        const form = document.getElementById("password-form") as HTMLFormElement;
+        form?.reset();
       } else {
-        setPasswordError(result.error || "Une erreur s'est produite")
+        setPasswordError(result.error || "Une erreur s'est produite");
       }
     } catch (error) {
-      setPasswordError("Une erreur s'est produite lors du changement de mot de passe")
+      console.error("Erreur:", error);
+      setPasswordError("Une erreur s'est produite lors du changement de mot de passe");
     } finally {
-      setIsChangingPassword(false)
+      setIsChangingPassword(false);
     }
   }
 
@@ -156,5 +150,6 @@ export default function SettingsForm({ user: initialUser }: SettingsFormProps) {
         </form>
       </div>
     </div>
-  )
+  );
 }
+

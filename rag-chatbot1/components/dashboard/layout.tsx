@@ -73,7 +73,7 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-4">
+          <nav className="space-y-1 p-4">
             {navItems.map((item) => (
               <Link
                 key={item.href}
@@ -92,8 +92,8 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
             ))}
           </nav>
 
-          {/* Chat history */}
-          <div className="flex-1 overflow-y-auto border-t border-slate-200 p-4">
+          {/* Chat history - Maintenant placé directement après la navigation */}
+          <div className="flex-1 overflow-y-auto p-4">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Historique des chats</h3>
             <ChatHistory />
           </div>
@@ -128,4 +128,3 @@ export default function DashboardLayout({ user, children }: DashboardLayoutProps
     </div>
   )
 }
-

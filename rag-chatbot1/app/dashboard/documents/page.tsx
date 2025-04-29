@@ -1,28 +1,67 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { redirect } from "next/navigation"
+import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/dashboard/layout"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import {
+  Search,
+  FileText,
+  FileIcon as FilePdf,
+  FileJson,
+  FileType,
+  Download,
+  Calendar,
+  Eye,
+  Loader2,
+  SortAsc,
+  SortDesc,
+  FileIcon,
+} from "lucide-react"
 
 interface DocumentData {
   filename: string
-  file_data: string // Lien ou données du fichier
+  file_data: string
   timestamp: string
+  file_type?: string
+  file_size?: number
+}
+
+interface User {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
 }
 
 export default function DocumentsPage() {
+  const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
-  const [user, setUser] = useState<{ id: string, firstName: string, lastName: string, email: string } | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [documents, setDocuments] = useState<DocumentData[]>([])
+  const [filteredDocuments, setFilteredDocuments] = useState<DocumentData[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedFileContent, setSelectedFileContent] = useState<string>("")
+  const [selectedFileName, setSelectedFileName] = useState<string>("")
+  const [selectedFileData, setSelectedFileData] = useState<string>("")
+  const [selectedFileType, setSelectedFileType] = useState<string>("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [activeTab, setActiveTab] = useState("all")
 
   useEffect(() => {
     const fetchUserId = async () => {
       try {
+        setIsLoading(true)
         const res = await fetch("/api/me")
         if (!res.ok) {
           console.warn("Utilisateur non authentifié")
+          router.push("/login")
           return
         }
 
@@ -39,95 +78,320 @@ export default function DocumentsPage() {
           const docsRes = await fetch(`http://127.0.0.1:8000/documents/?user_id=${userId}`)
           if (docsRes.ok) {
             const docsData = await docsRes.json()
-            setDocuments(docsData.documents)
+            // Enrichir les données avec le type de fichier
+            const enrichedDocs = docsData.documents.map((doc: DocumentData) => ({
+              ...doc,
+              file_type: getFileType(doc.filename),
+              file_size: calculateFileSize(doc.file_data),
+            }))
+            setDocuments(enrichedDocs)
+            setFilteredDocuments(enrichedDocs)
           }
         }
       } catch (error) {
         console.error("Erreur lors de la récupération du user_id ou des documents :", error)
+      } finally {
+        setIsLoading(false)
       }
     }
 
     fetchUserId()
-  }, [])
+  }, [router])
 
-  const handlePreviewFile = (fileData: string) => {
-    const decodedContent = atob(fileData)
-    setSelectedFileContent(decodedContent)
+  useEffect(() => {
+    // Filtrer les documents en fonction de la recherche et de l'onglet actif
+    let filtered = documents
+
+    // Filtrer par recherche
+    if (searchQuery) {
+      filtered = filtered.filter((doc) => doc.filename.toLowerCase().includes(searchQuery.toLowerCase()))
+    }
+
+    // Filtrer par type
+    if (activeTab !== "all") {
+      filtered = filtered.filter((doc) => doc.file_type === activeTab)
+    }
+
+    // Trier par date
+    filtered = [...filtered].sort((a, b) => {
+      const dateA = new Date(a.timestamp).getTime()
+      const dateB = new Date(b.timestamp).getTime()
+      return sortOrder === "asc" ? dateA - dateB : dateB - dateA
+    })
+
+    setFilteredDocuments(filtered)
+  }, [searchQuery, documents, activeTab, sortOrder])
+
+  const getFileType = (filename: string): string => {
+    const extension = filename.split(".").pop()?.toLowerCase() || ""
+
+    if (["pdf"].includes(extension)) return "pdf"
+    if (["txt"].includes(extension)) return "txt"
+    if (["doc", "docx", "rtf"].includes(extension)) return "document"
+
+    return "other"
+  }
+
+  const calculateFileSize = (fileData: string): number => {
+    // Base64 string length * 0.75 gives approximate size in bytes
+    return Math.round((fileData.length * 0.75) / 1024) // Size in KB
+  }
+
+  const formatFileSize = (sizeInKB: number): string => {
+    if (sizeInKB < 1024) {
+      return `${sizeInKB} KB`
+    } else {
+      return `${(sizeInKB / 1024).toFixed(2)} MB`
+    }
+  }
+
+  const handlePreviewFile = (fileData: string, filename: string, fileType: string) => {
+    setSelectedFileName(filename)
+    setSelectedFileData(fileData)
+    setSelectedFileType(fileType)
+
+    // Pour les fichiers texte, essayer de décoder le contenu
+    if (fileType === "txt" ) {
+      try {
+        const decodedContent = atob(fileData)
+        setSelectedFileContent(decodedContent)
+      } catch (error) {
+        console.error("Erreur lors du décodage du fichier:", error)
+        setSelectedFileContent("Impossible de décoder le contenu du fichier.")
+      }
+    } else {
+      // Pour les autres types, ne pas essayer de décoder
+      setSelectedFileContent("")
+    }
+
     setIsModalOpen(true)
   }
 
   const closeModal = () => {
     setIsModalOpen(false)
     setSelectedFileContent("")
+    setSelectedFileName("")
+    setSelectedFileData("")
+    setSelectedFileType("")
   }
 
-  if (!user) {
-    return <div>Chargement...</div>
+  const getFileIcon = (fileType: string) => {
+    switch (fileType) {
+      case "pdf":
+        return <FilePdf className="h-8 w-8 text-red-500" />
+      case "txt":
+        return <FileType className="h-8 w-8 text-purple-500" />
+      case "document":
+        return <FileText className="h-8 w-8 text-blue-500" />
+      default:
+        return <FileIcon className="h-8 w-8 text-gray-500" />
+    }
+  }
+
+  const toggleSortOrder = () => {
+    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+  }
+
+  // Fonction pour rendre le contenu du fichier en fonction de son type
+  const renderFilePreview = () => {
+    if (selectedFileType === "pdf") {
+      // Pour les PDF, utiliser un objet embed ou iframe
+      const pdfDataUri = `data:application/pdf;base64,${selectedFileData}`
+      return (
+        <div className="h-[70vh] w-full">
+          <object data={pdfDataUri} type="application/pdf" className="h-full w-full rounded border border-slate-200">
+            <p>
+              Votre navigateur ne peut pas afficher les PDF.{" "}
+              <a href={pdfDataUri} download={selectedFileName} className="text-blue-500 hover:underline">
+                Télécharger le PDF
+              </a>
+            </p>
+          </object>
+        </div>
+      )
+    } else if (selectedFileType === "txt") {
+      // Pour les fichiers texte, afficher simplement le contenu
+      return (
+        <pre className="max-h-[70vh] overflow-auto rounded border border-slate-200 bg-slate-50 p-4 font-mono text-sm whitespace-pre-wrap">
+          {selectedFileContent}
+        </pre>
+      )
+    } else {
+      // Pour les autres types, afficher un message
+      return (
+        <div className="flex h-[50vh] items-center justify-center rounded border border-slate-200 bg-slate-50 p-4">
+          <div className="text-center">
+            <FileIcon className="mx-auto mb-4 h-16 w-16 text-slate-400" />
+            <p className="text-lg font-medium text-slate-700">Aperçu non disponible</p>
+            <p className="mt-2 text-slate-500">Ce type de fichier ne peut pas être prévisualisé.</p>
+            <a
+              href={`data:application/octet-stream;base64,${selectedFileData}`}
+              download={selectedFileName}
+              className="mt-4 inline-block rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+            >
+              Télécharger le fichier
+            </a>
+          </div>
+        </div>
+      )
+    }
+  }
+
+  if (!user && isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-600" />
+        <span className="ml-2 text-lg font-medium">Chargement...</span>
+      </div>
+    )
   }
 
   return (
-    <DashboardLayout user={user}>
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <h1 className="text-3xl font-semibold text-gray-800 mb-6">
-          📁 Mes documents
-        </h1>
+    <DashboardLayout user={user!}>
+      <div className="container mx-auto px-4 py-6">
+        <div className="mb-8 flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">Mes Documents</h1>
+            <p className="mt-1 text-slate-500">Consultez tous vos documents disponibles</p>
+          </div>
 
-        <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-medium text-gray-700 mb-4">
-            Liste des fichiers
-          </h2>
-
-          {documents.length === 0 ? (
-            <p className="text-gray-500">Aucun document trouvé.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-2">
-                <thead className="text-sm text-gray-600 uppercase tracking-wider">
-                  <tr>
-                    <th className="text-left px-4 py-2 bg-gray-50 rounded-tl-lg">Nom du fichier</th>
-                    <th className="text-left px-4 py-2 bg-gray-50">Télécharger</th>
-                    <th className="text-left px-4 py-2 bg-gray-50 rounded-tr-lg">Date d'upload</th>
-                  </tr>
-                </thead>
-                <tbody className="text-gray-700 text-sm">
-                  {documents.map((doc, index) => (
-                    <tr key={index} className="bg-gray-50 hover:bg-gray-100 transition-all duration-200">
-                      <td className="px-4 py-3 rounded-l-lg">{doc.filename}</td>
-                      <td className="px-4 py-3">
-                        <a
-                          href={`data:application/octet-stream;base64,${doc.file_data}`}
-                          download={doc.filename}
-                          className="text-blue-600 hover:underline"
-                        >
-                          Télécharger
-                        </a>
-                      </td>
-                      <td className="px-4 py-3 rounded-r-lg">{new Date(doc.timestamp).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="flex flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Rechercher un document..."
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
-          )}
-        </section>
-      </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-1/2">
-            <h3 className="text-xl font-semibold mb-4">Aperçu du fichier</h3>
-            <div
-              className="max-h-96 overflow-y-auto whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: selectedFileContent }}
-            />
-            <div className="mt-4 text-right">
-              <button onClick={closeModal} className="bg-blue-500 text-white px-4 py-2 rounded">
-                Fermer
-              </button>
-            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleSortOrder}
+              title={sortOrder === "asc" ? "Plus récent en premier" : "Plus ancien en premier"}
+            >
+              {sortOrder === "asc" ? <SortAsc className="h-4 w-4" /> : <SortDesc className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
-      )}
+
+        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
+          <div className="mb-6 flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="all" className="flex items-center gap-1">
+                <FileText className="h-4 w-4" />
+                <span>Tous</span>
+                <Badge variant="outline" className="ml-1">
+                  {documents.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="document" className="flex items-center gap-1">
+                <FileText className="h-4 w-4 text-blue-500" />
+                <span>Documents</span>
+              </TabsTrigger>
+              <TabsTrigger value="pdf" className="flex items-center gap-1">
+                <FilePdf className="h-4 w-4 text-red-500" />
+                <span>PDF</span>
+              </TabsTrigger>
+              <TabsTrigger value="txt" className="flex items-center gap-1">
+                <FileType className="h-4 w-4 text-purple-500" />
+                <span>TXT</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value={activeTab} className="mt-0">
+            {isLoading ? (
+              <div className="flex h-64 items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+              </div>
+            ) : filteredDocuments.length === 0 ? (
+              <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                <FileText className="h-12 w-12 text-slate-300" />
+                <h3 className="mt-4 text-lg font-medium text-slate-700">Aucun document trouvé</h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  {searchQuery
+                    ? "Aucun document ne correspond à votre recherche"
+                    : "Aucun document n'est disponible pour le moment"}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {filteredDocuments.map((doc, index) => (
+                  <div
+                    key={index}
+                    className="group relative overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-all hover:shadow-md"
+                  >
+                    <div className="flex h-32 items-center justify-center bg-slate-50 p-4">
+                      {getFileIcon(doc.file_type || "other")}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="mb-1 truncate font-medium text-slate-800" title={doc.filename}>
+                        {doc.filename}
+                      </h3>
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <div className="flex items-center">
+                          <Calendar className="mr-1 h-3 w-3" />
+                          {new Date(doc.timestamp).toLocaleDateString()}
+                        </div>
+                        <div>{doc.file_size ? formatFileSize(doc.file_size) : "N/A"}</div>
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="flex items-center gap-1"
+                          onClick={() => handlePreviewFile(doc.file_data, doc.filename, doc.file_type || "other")}
+                        >
+                          <Eye className="h-4 w-4" />
+                          Aperçu
+                        </Button>
+                        <a href={`data:application/octet-stream;base64,${doc.file_data}`} download={doc.filename}>
+                          <Button size="sm" variant="default" className="flex items-center gap-1">
+                            <Download className="h-4 w-4" />
+                            Télécharger
+                          </Button>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <span className="mr-2">Aperçu de {selectedFileName}</span>
+            </DialogTitle>
+            <DialogDescription>Prévisualisation du contenu du fichier</DialogDescription>
+          </DialogHeader>
+
+          {renderFilePreview()}
+
+          <div className="mt-4 flex justify-end">
+            <a
+              href={`data:application/octet-stream;base64,${selectedFileData}`}
+              download={selectedFileName}
+              className="mr-2"
+            >
+              <Button variant="outline" className="flex items-center gap-1">
+                <Download className="h-4 w-4" />
+                Télécharger
+              </Button>
+            </a>
+            <Button onClick={closeModal}>Fermer</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }
