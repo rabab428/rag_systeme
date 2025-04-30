@@ -1,7 +1,7 @@
 // Service pour communiquer avec le backend FastAPI et l'API Next.js
 
 // Configuration de base pour les requêtes
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 const NEXT_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 // Fonction utilitaire pour les requêtes
@@ -23,8 +23,13 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   // Gérer les erreurs HTTP
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
+    if (response.status === 404) {
+      console.warn("Ressource non trouvée :", url)
+      return null
+    }
     throw new Error(errorData.detail || `API error: ${response.status}`)
   }
+  
 
   // Retourner les données si la réponse est au format JSON
   if (response.headers.get("content-type")?.includes("application/json")) {

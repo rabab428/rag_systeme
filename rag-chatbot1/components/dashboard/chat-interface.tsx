@@ -105,14 +105,14 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
       setIsLoading(true)
       const data = await chatService.getConversation(id)
 
-      if (data.conversation && data.conversation.messages) {
+      if (data && data.conversation && data.conversation.messages) {
         setMessages(
           data.conversation.messages.map((msg: any) => ({
             ...msg,
-            timestamp: new Date(msg.timestamp),
-          })),
+          }))
         )
       }
+      
     } catch (error) {
       console.error("Error fetching conversation:", error)
       toast({
