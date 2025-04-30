@@ -107,26 +107,7 @@ export default function SettingsForm({ user }: SettingsFormProps) {
         </form>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-medium">Préférences du chatbot</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Réponses détaillées</p>
-              <p className="text-sm text-slate-500">Obtenir des réponses plus détaillées du chatbot</p>
-            </div>
-            <Switch defaultChecked />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">Historique des conversations</p>
-              <p className="text-sm text-slate-500">Sauvegarder l'historique des conversations</p>
-            </div>
-            <Switch defaultChecked />
-          </div>
-        </div>
-      </div>
-
+      
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-lg font-medium">Sécurité</h2>
         {passwordError && <div className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-800">{passwordError}</div>}

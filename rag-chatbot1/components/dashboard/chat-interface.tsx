@@ -12,6 +12,7 @@ import { chatService } from "@/lib/api-service"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 
+
 const ChatMessageTimestamp = ({ timestamp }: { timestamp: Date }) => {
   const [time, setTime] = useState<string | null>(null)
 
@@ -45,6 +46,34 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const { toast } = useToast()
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
+
+
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // C'est côté client, vous pouvez utiliser localStorage ici
+      const savedId = localStorage.getItem('currentConversationId');
+      // Check if there is a saved conversation ID in localStorage
+    if (savedId) {
+      // Call the function to load the conversation
+      fetchConversation(savedId);
+      router.push(`/dashboard/chat/${savedId}`);
+
+    }
+    }
+  },[]);
+
+  
+  useEffect(() => {
+    if (currentConversationId) {
+      // Mettre à jour localStorage avec le nouvel ID de conversation
+      localStorage.setItem('currentConversationId', currentConversationId);
+    }
+  }, [currentConversationId]);  // Cela se déclenchera à chaque fois que currentConversationId change
+  
+
+
+
 
   // Charger les messages de la conversation si un ID est fourni
   useEffect(() => {
@@ -244,6 +273,10 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
       }
 
       const data = await response.json()
+
+
+      localStorage.setItem("File", file.name); // ligne exacte pour stocker les données du fichier
+      localStorage.setItem("FileSize", file.size.toString())
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
