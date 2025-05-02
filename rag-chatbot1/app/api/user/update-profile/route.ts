@@ -65,7 +65,6 @@ export async function PUT(request: Request) {
     })
 
     // Mettre à jour le cookie de session
-    // Utiliser await avec cookies()
     const cookieStore = await cookies()
     cookieStore.set({
       name: "session",
@@ -82,6 +81,3 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }
-
-
-
