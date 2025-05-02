@@ -1,8 +1,9 @@
-import type { Metadata } from 'next'
 import './globals.css'
+import type { Metadata } from 'next'
+import { MessageCircle } from "lucide-react"
 
 export const metadata: Metadata = {
-  title: 'RAG_Chatbot',
+  title: 'RAGBot',
   description: 'My Blog Description',
   generator: 'Next.js',
 }
@@ -14,7 +15,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        {/* Utilisation de opa.jpeg comme icône */}
+        <link rel="icon" href="/opa.PNG" />
+      </head>
+      <body>
+        {/* Ajout du MessageCircle en tant qu'icône de chat */}
+        <MessageCircle size={24} color="#000" />
+        {children}
+      </body>
     </html>
   )
 }
