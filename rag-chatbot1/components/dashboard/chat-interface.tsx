@@ -38,7 +38,6 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState("chat")
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | undefined>(conversationId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -328,9 +327,9 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
         </Button>
       </div>
 
-      <Tabs defaultValue="chat" className="h-full" onValueChange={(value) => setActiveTab(value)}>
-        <div className="mb-4 flex items-center justify-between">
-          <TabsList>
+      <Tabs defaultValue="chat" className="h-full flex flex-col gap-2">
+        {/* <div className="mb-4 flex items-center justify-between"> */}
+          <TabsList className="w-fit">
             <TabsTrigger value="chat" className="flex items-center gap-2">
               <MessageCircleIcon className="h-4 w-4" />
               Chat
@@ -340,9 +339,9 @@ export default function ChatInterface({ conversationId }: ChatInterfaceProps) {
               Fichiers
             </TabsTrigger>
           </TabsList>
-        </div>
+        {/* </div> */}
 
-        <TabsContent value="chat" className="flex h-[calc(100%-56px)] flex-col">
+        <TabsContent value="chat" className="flex flex-1 flex-col">
           <div className="flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-4">
             {isInitialLoad && conversationId ? (
               <div className="flex items-center justify-center h-full">
