@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation"
 import DashboardLayout from "@/components/dashboard/layout"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -21,7 +28,10 @@ import {
   SortAsc,
   SortDesc,
   FileIcon,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
 
 interface DocumentData {
   filename: string
@@ -53,6 +63,10 @@ export default function DocumentsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [activeTab, setActiveTab] = useState("all")
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -127,6 +141,7 @@ export default function DocumentsPage() {
 
     if (["pdf"].includes(extension)) return "pdf"
     if (["txt"].includes(extension)) return "txt"
+    if (["json"].includes(extension)) return "json"
     if (["doc", "docx", "rtf"].includes(extension)) return "document"
 
     return "other"
@@ -151,7 +166,7 @@ export default function DocumentsPage() {
     setSelectedFileType(fileType)
 
     // Pour les fichiers texte, essayer de décoder le contenu
-    if (fileType === "txt" ) {
+    if (fileType === "txt" || fileType === "json") {
       try {
         const decodedContent = atob(fileData)
         setSelectedFileContent(decodedContent)
@@ -175,6 +190,53 @@ export default function DocumentsPage() {
     setSelectedFileType("")
   }
 
+  const handleDeleteClick = (filename: string) => {
+    setDocumentToDelete(filename)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!documentToDelete || !userId) return
+
+    setIsDeleting(true)
+    try {
+      // Modifier cette URL pour pointer vers votre nouveau backend
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/documents/delete/`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          filename: documentToDelete,
+        }),
+      })
+
+      if (response.ok) {
+        // Mettre à jour la liste des documents
+        setDocuments((prev) => prev.filter((doc) => doc.filename !== documentToDelete))
+
+        toast({
+          title: "Document supprimé",
+          description: `Le document "${documentToDelete}" a été supprimé avec succès.`,
+        })
+      } else {
+        throw new Error("Erreur lors de la suppression")
+      }
+    } catch (error) {
+      console.error("Erreur lors de la suppression du document:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer le document. Veuillez réessayer.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+      setIsDeleteDialogOpen(false)
+      setDocumentToDelete(null)
+    }
+  }
+
   const getFileIcon = (fileType: string) => {
     switch (fileType) {
       case "pdf":
@@ -183,6 +245,8 @@ export default function DocumentsPage() {
         return <FileType className="h-8 w-8 text-purple-500" />
       case "document":
         return <FileText className="h-8 w-8 text-blue-500" />
+      case "json":
+        return <FileJson className="h-8 w-8 text-green-500" />
       default:
         return <FileIcon className="h-8 w-8 text-gray-500" />
     }
@@ -209,6 +273,23 @@ export default function DocumentsPage() {
           </object>
         </div>
       )
+    } else if (selectedFileType === "json") {
+      // Pour les JSON, essayer de formater joliment
+      try {
+        const jsonContent = JSON.parse(selectedFileContent)
+        return (
+          <pre className="max-h-[70vh] overflow-auto rounded border border-slate-200 bg-slate-50 p-4 font-mono text-sm">
+            {JSON.stringify(jsonContent, null, 2)}
+          </pre>
+        )
+      } catch (e) {
+        // Si le parsing échoue, afficher le contenu brut
+        return (
+          <pre className="max-h-[70vh] overflow-auto rounded border border-slate-200 bg-slate-50 p-4 font-mono text-sm">
+            {selectedFileContent}
+          </pre>
+        )
+      }
     } else if (selectedFileType === "txt") {
       // Pour les fichiers texte, afficher simplement le contenu
       return (
@@ -299,6 +380,10 @@ export default function DocumentsPage() {
                 <FileType className="h-4 w-4 text-purple-500" />
                 <span>TXT</span>
               </TabsTrigger>
+              <TabsTrigger value="json" className="flex items-center gap-1">
+                <FileJson className="h-4 w-4 text-green-500" />
+                <span>JSON</span>
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -340,22 +425,31 @@ export default function DocumentsPage() {
                       </div>
                     </div>
                     <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100">
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-1">
                         <Button
                           size="sm"
                           variant="secondary"
-                          className="flex items-center gap-1"
+                          className="flex h-7 items-center gap-1 px-2 text-xs"
                           onClick={() => handlePreviewFile(doc.file_data, doc.filename, doc.file_type || "other")}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-3 w-3" />
                           Aperçu
                         </Button>
                         <a href={`data:application/octet-stream;base64,${doc.file_data}`} download={doc.filename}>
-                          <Button size="sm" variant="default" className="flex items-center gap-1">
-                            <Download className="h-4 w-4" />
+                          <Button size="sm" variant="default" className="flex h-7 items-center gap-1 px-2 text-xs">
+                            <Download className="h-3 w-3" />
                             Télécharger
                           </Button>
                         </a>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="flex h-7 w-7 items-center justify-center p-0"
+                          onClick={() => handleDeleteClick(doc.filename)}
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -366,6 +460,7 @@ export default function DocumentsPage() {
         </Tabs>
       </div>
 
+      {/* Modal d'aperçu de fichier */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
@@ -392,6 +487,51 @@ export default function DocumentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Dialogue de confirmation de suppression */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-red-600">
+              <AlertTriangle className="mr-2 h-5 w-5" />
+              Confirmer la suppression
+            </DialogTitle>
+            <DialogDescription>
+              Êtes-vous sûr de vouloir supprimer définitivement ce document ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm font-medium text-slate-700">
+              Document à supprimer : <span className="font-bold">{documentToDelete}</span>
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+              Annuler
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="flex items-center gap-1"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Suppression...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer définitivement
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }
+
+

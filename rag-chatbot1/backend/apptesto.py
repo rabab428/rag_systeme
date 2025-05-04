@@ -22,6 +22,7 @@ from datetime import datetime
 import traceback
 from bson.binary import Binary  
 import base64
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 
 
 # Logger
@@ -467,6 +468,68 @@ async def list_documents(user_id: str):
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des documents: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+    
+@app.delete("/documents/delete/")
+async def delete_document(request: Request):
+    """
+    Supprime un document spécifique de la base de données MongoDB.
+    Requiert user_id et filename dans le corps de la requête.
+    """
+    try:
+        data = await request.json()
+        user_id = data.get("user_id")
+        filename = data.get("filename")
+        
+        if not user_id or not filename:
+            logger.error("Paramètres manquants: user_id et filename sont requis")
+            raise HTTPException(
+                status_code=400,
+                detail="user_id et filename sont requis"
+            )
+        
+        logger.info(f"Tentative de suppression du document: {filename} pour user_id: {user_id}")
+        
+        # Suppression du document de MongoDB
+        result = docs_collection.delete_one({
+            "user_id": user_id,
+            "filename": filename
+        })
+        
+        if result.deleted_count == 0:
+            logger.warning(f"Document non trouvé: {filename} pour user_id: {user_id}")
+            raise HTTPException(
+                status_code=404,
+                detail="Document non trouvé"
+            )
+        
+        # Suppression de la collection Chroma correspondante si elle existe
+        collection_name = sanitize_collection_name(filename)
+        try:
+            import chromadb
+            chroma_client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
+            if collection_name in [col.name for col in chroma_client.list_collections()]:
+                chroma_client.delete_collection(collection_name)
+                logger.info(f"Collection Chroma supprimée: {collection_name}")
+        except Exception as e:
+            # On continue même si la suppression de la collection Chroma échoue
+            logger.warning(f"Impossible de supprimer la collection Chroma: {str(e)}")
+        
+        logger.info(f"Document supprimé avec succès: {filename}")
+        return {
+            "success": True, 
+            "message": f"Document {filename} supprimé avec succès"
+        }
+    
+    except HTTPException as he:
+        # Réutiliser les exceptions HTTP déjà levées
+        raise he
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression du document: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la suppression: {str(e)}"
+        )
 
 
 
