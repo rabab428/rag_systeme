@@ -19,7 +19,6 @@ import {
   Search,
   FileText,
   FileIcon as FilePdf,
-  FileJson,
   FileType,
   Download,
   Calendar,
@@ -245,8 +244,6 @@ export default function DocumentsPage() {
         return <FileType className="h-8 w-8 text-purple-500" />
       case "document":
         return <FileText className="h-8 w-8 text-blue-500" />
-      case "json":
-        return <FileJson className="h-8 w-8 text-green-500" />
       default:
         return <FileIcon className="h-8 w-8 text-gray-500" />
     }
@@ -273,23 +270,6 @@ export default function DocumentsPage() {
           </object>
         </div>
       )
-    } else if (selectedFileType === "json") {
-      // Pour les JSON, essayer de formater joliment
-      try {
-        const jsonContent = JSON.parse(selectedFileContent)
-        return (
-          <pre className="max-h-[70vh] overflow-auto rounded border border-slate-200 bg-slate-50 p-4 font-mono text-sm">
-            {JSON.stringify(jsonContent, null, 2)}
-          </pre>
-        )
-      } catch (e) {
-        // Si le parsing échoue, afficher le contenu brut
-        return (
-          <pre className="max-h-[70vh] overflow-auto rounded border border-slate-200 bg-slate-50 p-4 font-mono text-sm">
-            {selectedFileContent}
-          </pre>
-        )
-      }
     } else if (selectedFileType === "txt") {
       // Pour les fichiers texte, afficher simplement le contenu
       return (
@@ -379,10 +359,6 @@ export default function DocumentsPage() {
               <TabsTrigger value="txt" className="flex items-center gap-1">
                 <FileType className="h-4 w-4 text-purple-500" />
                 <span>TXT</span>
-              </TabsTrigger>
-              <TabsTrigger value="json" className="flex items-center gap-1">
-                <FileJson className="h-4 w-4 text-green-500" />
-                <span>JSON</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -533,5 +509,6 @@ export default function DocumentsPage() {
     </DashboardLayout>
   )
 }
+
 
 
