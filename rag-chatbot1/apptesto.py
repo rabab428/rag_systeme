@@ -96,114 +96,74 @@ import re
 from typing import List, Tuple
 import unicodedata
 
-def detect_document_title(text: str, max_lines: int = 3) -> str:
-    """
-    Détection intelligente de titre avec analyse contextuelle avancée.
-    Version 3.0 - Améliorations majeures :
-    - Meilleure gestion de la casse (majuscules/minuscules)
-    - Analyse sémantique basique
-    - Détection des motifs typographiques
-    - Gestion améliorée des documents structurés
-    
-    Args:
-        text: Texte complet du document
-        max_lines: Nombre maximum de lignes pour un titre (1-3)
-    Returns:
-        Le titre détecté (nettoyé et normalisé)
-    """
-    # Normalisation du texte
+def detect_document_title(text: str, max_lines: int = 5) -> str:
+    import re
+    import unicodedata
+    from typing import Tuple
+
     text = unicodedata.normalize('NFKC', text.strip())
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if not lines:
         return "Titre non détecté"
 
-    # Configuration des motifs exclus (avec regex)
     excluded_patterns = [
-        r"^(\d+[\.\)]?|[\•\-\*►§])\s",  # Numérotation ou puces
+        r"^(\d+[\.\)]?|[\•\-\*►§])\s",
         r"(?i)(introduction|abstract|résumé|sommaire|table\sdes\smatières)",
         r"(?i)(chapitre|partie|annexe|appendice|références)",
-        r"^[^\w]*$",  # Lignes sans mots
+        r"^[^\w]*$",
         r"\b(confidentiel|draft|version)\b",
-        r".*[\.:;,]$"  # Se termine par ponctuation
+        r".*[\.:;,]$"
     ]
 
-    # Dictionnaire de mots courants à exclure
     common_words = {
         'le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux',
         'et', 'ou', 'mais', 'donc', 'or', 'ni', 'car', 'à', 'dans', 'par',
         'pour', 'sur', 'avec', 'sans', 'sous', 'entre', 'vers'
     }
 
-    # Score une ligne candidate
     def evaluate_line(line: str, position: int) -> Tuple[float, str]:
         original_line = line
         line = re.sub(r"\s+", " ", line).strip()
-        
-        # Vérification des exclusions
         for pattern in excluded_patterns:
             if re.search(pattern, line):
                 return (0, "")
-        
         words = [w for w in re.findall(r"\w+", line.lower()) if len(w) > 2]
         word_count = len(words)
-        
-        # Filtre basique
-        if word_count < 2 or word_count > 12:
+        if word_count < 2 or word_count > 20:  # élargir les titres plus longs
             return (0, "")
-        
-        # Calcul du score
+
         score = 0.0
-        
-        # 1. Caractéristiques textuelles
         unique_words = set(words) - common_words
         word_ratio = len(unique_words) / word_count
-        score += min(2.0, word_ratio * 3)  # Bonus pour vocabulaire riche
-        
-        # 2. Structure typographique
-        if re.search(r"[A-Z][a-z]", line):  # Title Case
+        score += min(2.0, word_ratio * 3)
+        if re.search(r"[A-Z][a-z]", line):
             score += 1.5
-        elif not line.isupper():  # Pas tout en majuscules
+        elif not line.isupper():
             score += 0.5
-        
-        # 3. Position dans le document
-        score += max(0, (10 - position) * 0.4)
-        
-        # 4. Longueur optimale
-        if 4 <= word_count <= 8:
+        score += max(0, (15 - position) * 0.4)  # analyser plus loin
+        if 4 <= word_count <= 15:  # élargir l'intervalle
             score += 1.2
-        
-        # 5. Motifs spéciaux
-        if not re.search(r"\d", line):  # Pas de chiffres
+        if not re.search(r"\d", line):
             score += 0.8
-        
-        # 6. Densité lexicale
         long_words = sum(1 for w in words if len(w) > 4)
         if long_words / word_count > 0.6:
             score += 0.7
-        
         return (score, original_line)
 
-    # Analyse des groupes de lignes
     best_candidate = ""
     best_score = 0.0
     current_group = []
     current_score = 0.0
 
-    for i, line in enumerate(lines[:20]):  # Analyse les 20 premières lignes
+    for i, line in enumerate(lines[:40]):  # au lieu de 20, on analyse les 40 premières lignes
         line_score, clean_line = evaluate_line(line, i)
-        
         if line_score > 0:
             current_group.append(clean_line)
             current_score += line_score
-            
-            # Évalue le groupe actuel
             if 1 <= len(current_group) <= max_lines:
                 group_avg = current_score / len(current_group)
-                
-                # Bonus pour les groupes cohérents
                 if len(current_group) > 1:
-                    group_avg *= 1.3
-                
+                    group_avg *= 1.5  # bonus plus fort pour les groupes
                 if group_avg > best_score:
                     best_score = group_avg
                     best_candidate = "\n".join(current_group)
@@ -211,27 +171,22 @@ def detect_document_title(text: str, max_lines: int = 3) -> str:
             current_group = []
             current_score = 0.0
 
-    # Post-traitement et validation
-    if best_score >= 3.0:  # Seuil strict
-        # Nettoyage final
-        title = re.sub(r"\n+", " ", best_candidate)  # Fusionne les lignes
+    if best_score >= 3.0:
+        title = re.sub(r"\n+", " ", best_candidate)
         title = re.sub(r"\s+", " ", title).strip()
-        title = title[:200]  # Troncature sécurité
-        
-        # Validation sémantique basique
+        title = title[:300]  # tronque plus long
         words = [w for w in re.findall(r"\w+", title.lower()) if len(w) > 3]
-        if len(set(words)) >= 2:  # Au moins 2 mots significatifs
+        if len(set(words)) >= 2:
             return title
 
-    # Fallback intelligent
-    first_lines = lines[:2]
+    first_lines = lines[:5]  # regarde les 5 premières lignes pour fallback
     simple_title = " ".join([l.strip() for l in first_lines if l.strip()])
-    simple_title = re.sub(r"\s+", " ", simple_title)[:150].strip()
-    
-    if len(re.findall(r"\w+", simple_title)) >= 2:  # Au moins 2 mots
+    simple_title = re.sub(r"\s+", " ", simple_title)[:200].strip()
+    if len(re.findall(r"\w+", simple_title)) >= 2:
         return simple_title
-    
-    return lines[0][:100] if lines else "Titre non détecté"
+
+    return lines[0][:150] if lines else "Titre non détecté"
+
 
 
 
@@ -342,78 +297,42 @@ async def ask_question(data: QuestionRequest):
     if VECTOR_DB is None:
         raise HTTPException(status_code=400, detail="Aucun document chargé.")
 
-    # 1️⃣ Détection des questions sur le titre
-    title_keywords = [
-    # Français
-    "titre",
-    "intitulé",
-    "intitulé du document",
-    "titre du document",
-    "dénomination du document",
-    "désignation du document",
-    "comment s'appelle ce document",
-    "quel est le titre",
-    "quel est l’intitulé",
-    "quel est le titre du document",
-   ]
-
-    is_title_question = any(keyword in question.lower() for keyword in title_keywords)
+    
+    
 
     try:
-        llm = ChatOllama(model="llama3.2:latest")
+        llm = ChatOllama(model="qwen3:0.6b")
         retriever = VECTOR_DB.as_retriever()
 
-        # 2️⃣ Prompt spécial pour les titres
-        if is_title_question:
+
             # Récupère le contexte réel (le titre exact)
-            if not last_uploaded_filename:
-                  raise HTTPException(status_code=400, detail="Aucun fichier uploadé récemment")
-            doc = docs_collection.find_one({"filename": last_uploaded_filename}, {"title": 1})
+        if not last_uploaded_filename:
+              raise HTTPException(status_code=400, detail="Aucun fichier uploadé récemment")
+        doc = docs_collection.find_one({"filename": last_uploaded_filename}, {"title": 1})
 
-            exact_title = doc.get("title", "Titre non disponible") if doc else "Titre non disponible"
+        contient_title = doc.get("title", "Titre non disponible") if doc else "Titre non disponible"
             
-            # Formatte le contexte pour le LLM
-            context = f"Le texte contient le titre du document : {exact_title}"
             
-            template = """
-Vous êtes un expert en traitement automatique de documents, spécialisé dans l'extraction précise de titres.
+        template = """Répondez à la question en vous basant uniquement sur le contexte ci-dessous :
 
-Contexte :
 {context}
 
 Question : {question}
 
-Instructions strictes :
-- Analysez **uniquement** le contenu fourni dans le contexte.
-- Votre objectif est d'extraire **exclusivement le titre principal du document**.
-- Ignorez systématiquement :
-  - Les noms d’universités, facultés, départements, laboratoires, adresses ou noms d’auteurs.
-  - Toute mention secondaire comme les dates, lieux ou signatures.
-- Le titre doit représenter **le sujet central ou le thème principal** du document.
-- Répondez uniquement par **une phrase complète** sur le titre .
-- Si aucun titre clair ne peut être identifié, répondez exactement : “Je ne trouve pas le titre dans le document.”
-- Utilisez **la langue de l’utilisateur** pour répondre.
-"""
+Règles :
+- Soyez concis et factuel.
+- Si l’information n’est pas présente dans le contexte, dites-le clairement.
+- Cas particulier : si la question demande uniquement le titre principal, extrayez **uniquement** le titre à partir de cette partie du contexte qui le contient : {contient_title}, **sans ajouter d’autres informations** (pas d’université, pas de date, pas d’auteur, etc.)."""
 
 
-        else:
-            # 3️⃣ Prompt normal pour les autres questions
-            template = """Répondez à la question en vous basant sur le contexte :
-            {context}
-
-            Question : {question}
-
-            Règles :
-            - Soyez concis et factuel
-            - Si l'information n'est pas dans le contexte, dites-le
-            - repondre par la langue de l'utilisateur
-            """
 
         prompt = ChatPromptTemplate.from_template(template)
         
         chain = (
-            {"context": retriever if not is_title_question else lambda _: {"context": context}, 
-             "question": RunnablePassthrough()}
+            {"context": retriever,
+             "question": RunnablePassthrough(),
+             "contient_title": lambda _: contient_title
+             }
             | prompt
             | llm
             | StrOutputParser()
