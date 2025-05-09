@@ -285,6 +285,8 @@ async def upload_file(
 
  
 from pydantic import BaseModel
+from langdetect import detect
+
 
 class QuestionRequest(BaseModel):
     question: str
@@ -292,6 +294,8 @@ class QuestionRequest(BaseModel):
 @app.post("/ask_question/")
 async def ask_question(data: QuestionRequest):
     question = data.question
+    lang = detect(question)  # Exemple : "fr", "en", etc.
+    logger.info(f"la langue detecte de la question est : {lang}")
 
     global VECTOR_DB
     if VECTOR_DB is None:
@@ -301,7 +305,7 @@ async def ask_question(data: QuestionRequest):
     
 
     try:
-        llm = ChatOllama(model="qwen3:0.6b")
+        llm = ChatOllama(model="llama3.2:latest")
         retriever = VECTOR_DB.as_retriever()
 
 
@@ -312,18 +316,32 @@ async def ask_question(data: QuestionRequest):
 
         contient_title = doc.get("title", "Titre non disponible") if doc else "Titre non disponible"
             
-            
-        template = """Répondez à la question en vous basant uniquement sur le contexte ci-dessous :
+        if lang=="en" : 
+           template = """Answer the question based solely on the context below:
 
-{context}
+          {context}
+         - Special case: if the question asks only for the main title, extract **only** the title from this part of the context that contains it: {contient_title}, **without adding any other information** (no university, no date, no author, etc.).
 
-Question : {question}
+         Question: {question}
 
-Règles :
-- Soyez concis et factuel.
-- Si l’information n’est pas présente dans le contexte, dites-le clairement.
-- Cas particulier : si la question demande uniquement le titre principal, extrayez **uniquement** le titre à partir de cette partie du contexte qui le contient : {contient_title}, **sans ajouter d’autres informations** (pas d’université, pas de date, pas d’auteur, etc.)."""
+         Rules:
+         - answer in English.
+         - Be concise and factual.
+         - If the information is not present in the context, state this clearly.
+          """
+        else :
+           template = """Répondez à la question en vous basant uniquement sur le contexte ci-dessous :
 
+           {context}
+           - Cas particulier : si la question demande uniquement le titre principal, extrayez **uniquement** le titre à partir de cette partie du contexte qui le contient : {contient_title}, **sans ajouter d’autres informations** (pas d’université, pas de date, pas d’auteur, etc.).
+
+           Question : {question}
+
+           Règles :
+          - Réponds en français.
+          - Soyez concis et factuel.
+          - Si l’information n’est pas présente dans le contexte, dites-le clairement.
+          """
 
 
         prompt = ChatPromptTemplate.from_template(template)
@@ -338,8 +356,10 @@ Règles :
             | StrOutputParser()
         )
 
+
+
         response = chain.invoke(question)
-        return {"question": question, "response": response}
+        return {"question": question, "response": response }
 
     except Exception as e:
         logger.error(f"Erreur : {str(e)}")
