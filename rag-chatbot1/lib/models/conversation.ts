@@ -1,5 +1,21 @@
 import mongoose from "mongoose"
 
+// Schéma pour un élément de contexte avec score
+const contextItemSchema = new mongoose.Schema({
+  content: {
+    type: String,
+    required: true,
+  },
+  score: {
+    type: Number,
+    default: 0,
+  },
+  relevantSegment: {
+    type: String,
+    default: null,
+  },
+})
+
 // Définition du schéma pour les messages
 const messageSchema = new mongoose.Schema({
   id: {
@@ -18,6 +34,14 @@ const messageSchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     default: Date.now,
+  },
+  context: {
+    type: [contextItemSchema],
+    default: [],
+  },
+  question: {
+    type: String,
+    default: null,
   },
 })
 
@@ -61,3 +85,6 @@ conversationSchema.pre("save", function (next) {
 
 // Création du modèle Conversation
 export const Conversation = mongoose.models.Conversation || mongoose.model("Conversation", conversationSchema)
+
+
+

@@ -16,13 +16,17 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_ollama import ChatOllama
 from langchain_core.runnables import RunnablePassthrough
 from langchain.retrievers.multi_query import MultiQueryRetriever
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Form
 import nltk
 nltk.download('averaged_perceptron_tagger')
 from datetime import datetime  
 import traceback
 from bson.binary import Binary  
 import base64
+import numpy as np
+from langdetect import detect
+from pydantic import BaseModel
+from typing import Dict, List, Optional
 
 
 # Logger
@@ -50,13 +54,13 @@ db = mongo_client["rago_db"]
 docs_collection = db["documents"]
 
 
-# Variable globale pour garder le nom du dernier fichier
-last_uploaded_filename = None
 
 # Répertoire pour la base de vecteurs
 PERSIST_DIRECTORY = os.path.join("data", "vectors")
-VECTOR_DB = None
-
+# Dictionnaire pour gérer les vecteurs par utilisateur
+USER_VECTOR_DBS = {}
+# Dictionnaire pour stocker les bases de vecteurs par fichier
+VECTOR_DBS: Dict[str, Chroma] = {}
 
 
 def sanitize_collection_name(filename: str) -> str:
@@ -74,7 +78,6 @@ def sanitize_collection_name(filename: str) -> str:
     # Ajoute le préfixe et retourne
     return f"doc_{name}" if name else "doc_default"
 
-
 def extract_text_from_docx(file_path: str) -> str:
     """Extrait le texte d'un fichier DOCX."""
     doc = docx.Document(file_path)
@@ -85,286 +88,272 @@ def extract_text_from_txt(file_path: str) -> str:
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
 
-def extract_text_from_json(file_path: str) -> str:
-    """Extrait le texte d'un fichier JSON."""
-    with open(file_path, "r", encoding="utf-8") as f:
-        json_data = json.load(f)
-        return json.dumps(json_data, indent=2, ensure_ascii=False)
-
-
-
-import re
-from typing import List, Tuple
-import unicodedata
-
-def detect_document_title(text: str, max_lines: int = 5) -> str:
-    import re
-    import unicodedata
-    from typing import Tuple
-
-    text = unicodedata.normalize('NFKC', text.strip())
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
-    if not lines:
-        return "Titre non détecté"
-
-    excluded_patterns = [
-        r"^(\d+[\.\)]?|[\•\-\*►§])\s",
-        r"(?i)(introduction|abstract|résumé|sommaire|table\sdes\smatières)",
-        r"(?i)(chapitre|partie|annexe|appendice|références)",
-        r"^[^\w]*$",
-        r"\b(confidentiel|draft|version)\b",
-        r".*[\.:;,]$"
-    ]
-
-    common_words = {
-        'le', 'la', 'les', 'un', 'une', 'des', 'de', 'du', 'au', 'aux',
-        'et', 'ou', 'mais', 'donc', 'or', 'ni', 'car', 'à', 'dans', 'par',
-        'pour', 'sur', 'avec', 'sans', 'sous', 'entre', 'vers'
-    }
-
-    def evaluate_line(line: str, position: int) -> Tuple[float, str]:
-        original_line = line
-        line = re.sub(r"\s+", " ", line).strip()
-        for pattern in excluded_patterns:
-            if re.search(pattern, line):
-                return (0, "")
-        words = [w for w in re.findall(r"\w+", line.lower()) if len(w) > 2]
-        word_count = len(words)
-        if word_count < 2 or word_count > 20:  # élargir les titres plus longs
-            return (0, "")
-
-        score = 0.0
-        unique_words = set(words) - common_words
-        word_ratio = len(unique_words) / word_count
-        score += min(2.0, word_ratio * 3)
-        if re.search(r"[A-Z][a-z]", line):
-            score += 1.5
-        elif not line.isupper():
-            score += 0.5
-        score += max(0, (15 - position) * 0.4)  # analyser plus loin
-        if 4 <= word_count <= 15:  # élargir l'intervalle
-            score += 1.2
-        if not re.search(r"\d", line):
-            score += 0.8
-        long_words = sum(1 for w in words if len(w) > 4)
-        if long_words / word_count > 0.6:
-            score += 0.7
-        return (score, original_line)
-
-    best_candidate = ""
-    best_score = 0.0
-    current_group = []
-    current_score = 0.0
-
-    for i, line in enumerate(lines[:40]):  # au lieu de 20, on analyse les 40 premières lignes
-        line_score, clean_line = evaluate_line(line, i)
-        if line_score > 0:
-            current_group.append(clean_line)
-            current_score += line_score
-            if 1 <= len(current_group) <= max_lines:
-                group_avg = current_score / len(current_group)
-                if len(current_group) > 1:
-                    group_avg *= 1.5  # bonus plus fort pour les groupes
-                if group_avg > best_score:
-                    best_score = group_avg
-                    best_candidate = "\n".join(current_group)
-        else:
-            current_group = []
-            current_score = 0.0
-
-    if best_score >= 3.0:
-        title = re.sub(r"\n+", " ", best_candidate)
-        title = re.sub(r"\s+", " ", title).strip()
-        title = title[:300]  # tronque plus long
-        words = [w for w in re.findall(r"\w+", title.lower()) if len(w) > 3]
-        if len(set(words)) >= 2:
-            return title
-
-    first_lines = lines[:5]  # regarde les 5 premières lignes pour fallback
-    simple_title = " ".join([l.strip() for l in first_lines if l.strip()])
-    simple_title = re.sub(r"\s+", " ", simple_title)[:200].strip()
-    if len(re.findall(r"\w+", simple_title)) >= 2:
-        return simple_title
-
-    return lines[0][:150] if lines else "Titre non détecté"
-
 
 
 
 from fastapi import Form  # ⬅️ Nécessaire pour récupérer user_id via POST
 
 from bson.binary import Binary  # ✅ à importer en haut de ton fichier
+from typing import List
 
-@app.post("/upload_file/")
-async def upload_file(
-    file: UploadFile = File(...),
-    user_id: str = Form(...)  # ⬅️ On récupère user_id depuis le frontend
+@app.post("/upload_files/")
+async def upload_files(
+    files: List[UploadFile] = File(...),
+    user_id: str = Form(...)
 ):
-    global VECTOR_DB
-    global last_uploaded_filename
+    global USER_VECTOR_DBS
 
-    logger.info(f"Traitement du fichier: {file.filename} pour user_id: {user_id}")
+    results = []
 
-    try:
-        # 1. Sauvegarde temporaire
-        temp_dir = tempfile.mkdtemp()
-        file_path = os.path.join(temp_dir, file.filename)
-        
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+    # ✅ Embeddings communs
+    embeddings = OllamaEmbeddings(model="yxchia/multilingual-e5-base")
 
-        # 2. Extraction du texte brut
-        text = ""
-        if file.filename.endswith(".pdf"):
-            loader = UnstructuredPDFLoader(file_path)
-            text = "\n".join([doc.page_content for doc in loader.load()])
-        elif file.filename.endswith(".docx"):
-            text = extract_text_from_docx(file_path)
-        elif file.filename.endswith((".txt", ".md")):
-            text = extract_text_from_txt(file_path)
-        elif file.filename.endswith(".json"):
-            text = extract_text_from_json(file_path)
-        else:
-            raise HTTPException(400, "Format non supporté. Veuillez uploader un PDF, DOCX, TXT ou JSON.")
-
-        if not text.strip():
-            raise HTTPException(400, "Fichier vide ou texte non extractible")
-
-        # 3. Détection du titre
-        title = detect_document_title(text, max_lines=3)
-        logger.info(f"Titre détecté : {title}")
-
-        # 4. Découpage du texte
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=7500,
-            chunk_overlap=200,
-            separators=["\n\n", "\n• ", "\n- ", "\n* ", "\n"]
-        )
-        chunks = text_splitter.split_text(text)
-
-        # ✅ 5. Lecture du fichier binaire
-        with open(file_path, "rb") as f:
-            file_binary = Binary(f.read())  # 👈 fichier encodé en binaire
-
-        # ✅ 6. Stockage MongoDB avec fichier binaire
-        doc_data = {
-            "user_id": user_id,
-            "filename": file.filename,
-            "title": title,
-            "text": text,
-            "chunks": chunks,
-            "file_data": file_binary,  # 👈 fichier stocké en binaire
-            "timestamp": datetime.now()
-        }
-        docs_collection.insert_one(doc_data)
-
-        last_uploaded_filename = file.filename
-
-        # 7. Création du vecteur store
-        embeddings = OllamaEmbeddings(model="yxchia/multilingual-e5-base")
-        collection_name = sanitize_collection_name(file.filename)
-        
-        VECTOR_DB = Chroma.from_texts(
-            texts=chunks,
-            embedding=embeddings,
-            persist_directory=PERSIST_DIRECTORY,
-            collection_name=collection_name
+    # ✅ Base vectorielle propre à chaque utilisateur
+    if user_id not in USER_VECTOR_DBS:
+        user_persist_dir = os.path.join(PERSIST_DIRECTORY, user_id)
+        os.makedirs(user_persist_dir, exist_ok=True)
+        USER_VECTOR_DBS[user_id] = Chroma(
+            embedding_function=embeddings,
+            persist_directory=user_persist_dir
         )
 
-        shutil.rmtree(temp_dir)
-        return {
-            "status": "success",
+    vector_db = USER_VECTOR_DBS[user_id]
+
+    for file in files:
+        logger.info(f"Traitement du fichier: {file.filename} pour user_id: {user_id}")
+
+        try:
+            # 1. Sauvegarde temporaire
+            temp_dir = tempfile.mkdtemp()
+            file_path = os.path.join(temp_dir, file.filename)
+
+            with open(file_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+
+            # 2. Extraction du texte
+            text = ""
+            if file.filename.endswith(".pdf"):
+                loader = UnstructuredPDFLoader(file_path)
+                text = "\n".join([doc.page_content for doc in loader.load()])
+            elif file.filename.endswith(".docx"):
+                text = extract_text_from_docx(file_path)
+            elif file.filename.endswith((".txt", ".md")):
+                text = extract_text_from_txt(file_path)
+            else:
+                raise HTTPException(400, f"Format non supporté pour {file.filename}")
+
+            if not text.strip():
+                raise HTTPException(400, f"Fichier {file.filename} vide ou texte non extractible")
+
+            # 3. Lecture binaire
+            with open(file_path, "rb") as f:
+                file_binary = Binary(f.read())
+
+            # 4. Enregistrement dans MongoDB
+            doc_data = {
+                "user_id": user_id,
+                "filename": file.filename,
+                "text": text,
+                "file_data": file_binary,
+                "timestamp": datetime.now()
+            }
+            docs_collection.insert_one(doc_data)
+
+            # 5. Ajout dans la base vectorielle avec metadata
+            file_size = os.path.getsize(file_path)
+            vector_db.add_texts([text], metadatas=[{
             "filename": file.filename,
-            "title": title,
-            "chunks": len(chunks),
-            "collection_name": collection_name
-        }
+            "size_bytes": file_size
+            }])
 
-    except Exception as e:
-        logger.error(f"Erreur: {traceback.format_exc()}")
-        raise HTTPException(500, f"Erreur de traitement: {str(e)}")
+            results.append({
+                "status": "success",
+                "filename": file.filename
+            })
 
- 
+            shutil.rmtree(temp_dir)
+
+        except Exception as e:
+            logger.error(f"Erreur sur {file.filename}: {traceback.format_exc()}")
+            results.append({
+                "status": "error",
+                "filename": file.filename,
+                "error": str(e)
+            })
+
+    return results
+
+
+
+
+
+
+
+
 from pydantic import BaseModel
 from langdetect import detect
 
-
+# ✅ Request model
 class QuestionRequest(BaseModel):
+    user_id: str
     question: str
 
 @app.post("/ask_question/")
 async def ask_question(data: QuestionRequest):
+    user_id = data.user_id
     question = data.question
-    lang = detect(question)  # Exemple : "fr", "en", etc.
-    logger.info(f"la langue detecte de la question est : {lang}")
 
-    global VECTOR_DB
-    if VECTOR_DB is None:
-        raise HTTPException(status_code=400, detail="Aucun document chargé.")
+    lang = detect(question)
+    logger.info(f"Langue détectée : {lang}, pour user_id : {user_id}")
 
-    
-    
+    # Vérifier l'existence de la base vectorielle utilisateur
+    if user_id not in USER_VECTOR_DBS:
+        raise HTTPException(status_code=400, detail="Aucun document chargé pour cet utilisateur.")
 
     try:
-        llm = ChatOllama(model="llama3.2:latest")
-        retriever = VECTOR_DB.as_retriever()
+        vector_db = USER_VECTOR_DBS[user_id]
+        retriever = vector_db.as_retriever(search_kwargs={"k": 1})
+        llm = ChatOllama(model="llama3.2:1b")
 
+        # Définir le prompt en fonction de la langue
+        if lang == "en":
+            template = """Answer the question based solely on the context below:
 
-            # Récupère le contexte réel (le titre exact)
-        if not last_uploaded_filename:
-              raise HTTPException(status_code=400, detail="Aucun fichier uploadé récemment")
-        doc = docs_collection.find_one({"filename": last_uploaded_filename}, {"title": 1})
+{context}
 
-        contient_title = doc.get("title", "Titre non disponible") if doc else "Titre non disponible"
-            
-        if lang=="en" : 
-           template = """Answer the question based solely on the context below:
+Question: {question}
 
-          {context}
-         - Special case: if the question asks only for the main title, extract **only** the title from this part of the context that contains it: {contient_title}, **without adding any other information** (no university, no date, no author, etc.).
+Rules:
+- Answer in English.
+- Be concise and factual.
+- If the information is not present in the context, state this clearly.
+"""
+        else:
+            template = """Répondez à la question en vous basant uniquement sur le contexte ci-dessous :
 
-         Question: {question}
+{context}
 
-         Rules:
-         - answer in English.
-         - Be concise and factual.
-         - If the information is not present in the context, state this clearly.
-          """
-        else :
-           template = """Répondez à la question en vous basant uniquement sur le contexte ci-dessous :
+Question : {question}
 
-           {context}
-           - Cas particulier : si la question demande uniquement le titre principal, extrayez **uniquement** le titre à partir de cette partie du contexte qui le contient : {contient_title}, **sans ajouter d’autres informations** (pas d’université, pas de date, pas d’auteur, etc.).
-
-           Question : {question}
-
-           Règles :
-          - Réponds en français.
-          - Soyez concis et factuel.
-          - Si l’information n’est pas présente dans le contexte, dites-le clairement.
-          """
-
+Règles :
+- Répondez en français.
+- Soyez concis et factuel.
+- Si l’information n’est pas présente dans le contexte, indiquez-le clairement.
+"""
 
         prompt = ChatPromptTemplate.from_template(template)
-        
+
+        # 🔍 Récupération des documents les plus pertinents
+        docs = retriever.get_relevant_documents(question)
+
+        if not docs:
+            context_text = "Aucun document pertinent trouvé."
+        else:
+            context_parts = []
+            for doc in docs:
+                filename = doc.metadata.get("filename", "Nom de fichier inconnu")
+                context_parts.append(f"📄 Fichier : {filename}\n{doc.page_content.strip()}")
+            context_text = "\n\n---\n\n".join(context_parts)
+
+        # 🧠 Construction et exécution de la chaîne
         chain = (
-            {"context": retriever,
-             "question": RunnablePassthrough(),
-             "contient_title": lambda _: contient_title
-             }
+            {"context": RunnablePassthrough(), "question": RunnablePassthrough()}
             | prompt
             | llm
             | StrOutputParser()
         )
 
+        response = chain.invoke({"context": context_text, "question": question})
 
-
-        response = chain.invoke(question)
-        return {"question": question, "response": response }
+        return {
+            "question": question,
+            "response": response,
+            "context_used": context_text
+        }
 
     except Exception as e:
-        logger.error(f"Erreur : {str(e)}")
+        logger.error(f"Erreur : {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Erreur interne.")
+
+
+from typing import List
+from pydantic import BaseModel
+
+class FileInfo(BaseModel):
+    filename: str
+    size: str  # taille formatée (ex: "872.56 KB")
+
+def format_size(bytes_size: int) -> str:
+    for unit in ["B", "KB", "MB"]:
+        if bytes_size < 1024:
+            return f"{bytes_size:.2f} {unit}"
+        bytes_size /= 1024
+    return f"{bytes_size:.2f} MB"  # Si >1024 MB, reste en MB
+
+@app.get("/get_uploaded_filenames/{user_id}", response_model=List[FileInfo])
+async def get_uploaded_filenames(user_id: str):
+    if user_id not in USER_VECTOR_DBS:
+        raise HTTPException(status_code=404, detail="Base vectorielle non trouvée pour cet utilisateur.")
+
+    try:
+        vector_db = USER_VECTOR_DBS[user_id]
+        collection = vector_db._collection
+        metadatas = collection.get(include=["metadatas"])["metadatas"]
+
+        files_info = []
+        seen_files = set()
+
+        for meta in metadatas:
+            if meta and "filename" in meta:
+                filename = meta["filename"]
+                if filename not in seen_files:
+                    size_bytes = meta.get("size_bytes", 0)
+                    size_str = format_size(size_bytes)
+                    files_info.append(FileInfo(filename=filename, size=size_str))
+                    seen_files.add(filename)
+
+        return files_info
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des fichiers : {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Erreur interne.")
+
+
+
+from fastapi import Query
+
+@app.delete("/delete_file_vector/")
+async def delete_file_vector(user_id: str = Query(...), filename: str = Query(...)):
+    if user_id not in USER_VECTOR_DBS:
+        raise HTTPException(status_code=404, detail="Base vectorielle non trouvée pour cet utilisateur.")
+
+    try:
+        vector_db = USER_VECTOR_DBS[user_id]
+        collection = vector_db._collection
+
+        # Obtenir tous les IDs des documents correspondant au fichier
+        ids_to_delete = []
+        collection_data = collection.get(include=["metadatas"])
+        for doc_id, meta in zip(collection_data["ids"], collection_data["metadatas"]):
+            if meta and meta.get("filename") == filename:
+                ids_to_delete.append(doc_id)
+
+        if not ids_to_delete:
+            raise HTTPException(status_code=404, detail="Aucun vecteur trouvé pour ce fichier.")
+
+        # Supprimer les vecteurs du fichier
+        collection.delete(ids_to_delete)
+
+        return {"status": "success", "deleted_vectors": len(ids_to_delete), "filename": filename}
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression : {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Erreur interne.")
+
+
+
+
+
 
 @app.get("/documents/")
 async def list_documents(user_id: str):
@@ -396,6 +385,8 @@ async def list_documents(user_id: str):
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des documents: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
 
 
 @app.delete("/documents/delete/")
@@ -443,6 +434,11 @@ async def delete_document(request: Request):
             # On continue même si la suppression de la collection Chroma échoue
             logger.warning(f"Impossible de supprimer la collection Chroma: {str(e)}")
         
+        # Supprimer également de VECTOR_DBS si présent
+        if filename in VECTOR_DBS:
+            del VECTOR_DBS[filename]
+            logger.info(f"Base de vecteurs supprimée de la mémoire: {filename}")
+        
         logger.info(f"Document supprimé avec succès: {filename}")
         return {
             "success": True, 
@@ -459,9 +455,6 @@ async def delete_document(request: Request):
             status_code=500,
             detail=f"Erreur lors de la suppression: {str(e)}"
         )
-
-
-
 
 
 
