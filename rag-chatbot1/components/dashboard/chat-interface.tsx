@@ -430,9 +430,7 @@ const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
 
   // Vérifie le nombre de fichiers déjà téléchargés
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/get_uploaded_filenames/${userId}`)
-  if (!response.ok) {
-    return alert("Erreur lors de la récupération des fichiers déjà téléchargés.")
-  }
+ 
 
   const existingFiles = await response.json()
   if (existingFiles.length >= 3) {
