@@ -91,6 +91,17 @@ def extract_text_from_txt(file_path: str) -> str:
 
 
 
+@app.on_event("startup")
+def load_existing_vector_dbs():
+    for user_id in os.listdir(PERSIST_DIRECTORY):
+        user_persist_dir = os.path.join(PERSIST_DIRECTORY, user_id)
+        if os.path.isdir(user_persist_dir):
+            USER_VECTOR_DBS[user_id] = Chroma(
+                embedding_function=OllamaEmbeddings(model="yxchia/multilingual-e5-base"),
+                persist_directory=user_persist_dir
+            )
+
+
 from fastapi import Form  # ⬅️ Nécessaire pour récupérer user_id via POST
 
 from bson.binary import Binary  # ✅ à importer en haut de ton fichier
@@ -190,6 +201,89 @@ async def upload_files(
 
 
 
+
+from typing import List
+from pydantic import BaseModel
+
+class FileInfo(BaseModel):
+    filename: str
+    size: str  # taille formatée (ex: "872.56 KB")
+
+def format_size(bytes_size: int) -> str:
+    for unit in ["B", "KB", "MB"]:
+        if bytes_size < 1024:
+            return f"{bytes_size:.2f} {unit}"
+        bytes_size /= 1024
+    return f"{bytes_size:.2f} MB"  # Si >1024 MB, reste en MB
+
+@app.get("/get_uploaded_filenames/{user_id}", response_model=List[FileInfo])
+async def get_uploaded_filenames(user_id: str):
+    if user_id not in USER_VECTOR_DBS:
+        raise HTTPException(status_code=404, detail="Base vectorielle non trouvée pour cet utilisateur.")
+
+    try:
+        vector_db = USER_VECTOR_DBS[user_id]
+        collection = vector_db._collection
+        metadatas = collection.get(include=["metadatas"])["metadatas"]
+
+        files_info = []
+        seen_files = set()
+
+        for meta in metadatas:
+            if meta and "filename" in meta:
+                filename = meta["filename"]
+                if filename not in seen_files:
+                    size_bytes = meta.get("size_bytes", 0)
+                    size_str = format_size(size_bytes)
+                    files_info.append(FileInfo(filename=filename, size=size_str))
+                    seen_files.add(filename)
+
+        return files_info
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des fichiers : {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Erreur interne.")
+
+
+
+from fastapi import Query
+
+@app.delete("/delete_file_vector/")
+async def delete_file_vector(user_id: str = Query(...), filename: str = Query(...)):
+    if user_id not in USER_VECTOR_DBS:
+        raise HTTPException(status_code=404, detail="Base vectorielle non trouvée pour cet utilisateur.")
+
+    try:
+        vector_db = USER_VECTOR_DBS[user_id]
+        collection = vector_db._collection
+
+        # Obtenir tous les IDs des documents correspondant au fichier
+        ids_to_delete = []
+        collection_data = collection.get(include=["metadatas"])
+        for doc_id, meta in zip(collection_data["ids"], collection_data["metadatas"]):
+            if meta and meta.get("filename") == filename:
+                ids_to_delete.append(doc_id)
+
+        if not ids_to_delete:
+            raise HTTPException(status_code=404, detail="Aucun vecteur trouvé pour ce fichier.")
+
+        # Supprimer les vecteurs du fichier
+        collection.delete(ids_to_delete)
+
+        return {"status": "success", "deleted_vectors": len(ids_to_delete), "filename": filename}
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression : {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Erreur interne.")
+
+
+
+
+
+
+
+
+
 from pydantic import BaseModel
 from langdetect import detect
 
@@ -276,79 +370,6 @@ Règles :
         raise HTTPException(status_code=500, detail="Erreur interne.")
 
 
-from typing import List
-from pydantic import BaseModel
-
-class FileInfo(BaseModel):
-    filename: str
-    size: str  # taille formatée (ex: "872.56 KB")
-
-def format_size(bytes_size: int) -> str:
-    for unit in ["B", "KB", "MB"]:
-        if bytes_size < 1024:
-            return f"{bytes_size:.2f} {unit}"
-        bytes_size /= 1024
-    return f"{bytes_size:.2f} MB"  # Si >1024 MB, reste en MB
-
-@app.get("/get_uploaded_filenames/{user_id}", response_model=List[FileInfo])
-async def get_uploaded_filenames(user_id: str):
-    if user_id not in USER_VECTOR_DBS:
-        raise HTTPException(status_code=404, detail="Base vectorielle non trouvée pour cet utilisateur.")
-
-    try:
-        vector_db = USER_VECTOR_DBS[user_id]
-        collection = vector_db._collection
-        metadatas = collection.get(include=["metadatas"])["metadatas"]
-
-        files_info = []
-        seen_files = set()
-
-        for meta in metadatas:
-            if meta and "filename" in meta:
-                filename = meta["filename"]
-                if filename not in seen_files:
-                    size_bytes = meta.get("size_bytes", 0)
-                    size_str = format_size(size_bytes)
-                    files_info.append(FileInfo(filename=filename, size=size_str))
-                    seen_files.add(filename)
-
-        return files_info
-
-    except Exception as e:
-        logger.error(f"Erreur lors de la récupération des fichiers : {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail="Erreur interne.")
-
-
-
-from fastapi import Query
-
-@app.delete("/delete_file_vector/")
-async def delete_file_vector(user_id: str = Query(...), filename: str = Query(...)):
-    if user_id not in USER_VECTOR_DBS:
-        raise HTTPException(status_code=404, detail="Base vectorielle non trouvée pour cet utilisateur.")
-
-    try:
-        vector_db = USER_VECTOR_DBS[user_id]
-        collection = vector_db._collection
-
-        # Obtenir tous les IDs des documents correspondant au fichier
-        ids_to_delete = []
-        collection_data = collection.get(include=["metadatas"])
-        for doc_id, meta in zip(collection_data["ids"], collection_data["metadatas"]):
-            if meta and meta.get("filename") == filename:
-                ids_to_delete.append(doc_id)
-
-        if not ids_to_delete:
-            raise HTTPException(status_code=404, detail="Aucun vecteur trouvé pour ce fichier.")
-
-        # Supprimer les vecteurs du fichier
-        collection.delete(ids_to_delete)
-
-        return {"status": "success", "deleted_vectors": len(ids_to_delete), "filename": filename}
-
-    except Exception as e:
-        logger.error(f"Erreur lors de la suppression : {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail="Erreur interne.")
 
 
 

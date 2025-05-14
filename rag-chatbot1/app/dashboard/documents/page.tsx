@@ -200,7 +200,7 @@ export default function DocumentsPage() {
     setIsDeleting(true)
     try {
       // Modifier cette URL pour pointer vers votre nouveau backend
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/documents/delete/`, {
+      const response = await fetch(`http://127.0.0.1:8000/documents/delete/`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
