@@ -79,10 +79,15 @@ export default function FileUpload() {
     fetchUserId()
   }, [])
 
-
+  // Fetch already uploaded files whenever userId changes
+  useEffect(() => {
+    if (userId) {
+      fetchUploadedFiles()
+    }
+  }, [userId])
 
 const fetchUploadedFiles = async () => {
-  
+  if (!userId) return
 
   setIsLoading(true)
   setErrorMessage("") // Reset l'erreur avant d'appeler
@@ -126,16 +131,7 @@ const fetchUploadedFiles = async () => {
   }
 }
 
-
-
-  // Fetch already uploaded files whenever userId changes
-  useEffect(() => {
-    if (userId) {
-      fetchUploadedFiles()
-    }
-  }, [userId])
-
-
+  
   // Helper function to parse file size string back to number
   const parseFileSize = (sizeStr: string): number => {
     const [value, unit] = sizeStr.split(" ")
