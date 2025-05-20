@@ -65,6 +65,42 @@ rag-chatbot/
 └── .env.local              # Variables d'environnement locales
 \`\`\`
 
+
+📁 rag-chatbot/
+
+├── 📁 app/                      # Dossiers et fichiers Next.js (App Router)
+│   ├── 📁 actions/             # Server Actions pour l'authentification et les utilisateurs
+│   ├── 📁 api/                 # Routes API Next.js
+│   ├── 📁 dashboard/           # Pages du tableau de bord (chat, documents, paramètres)
+│   ├── 📁 login/               # Page de connexion
+│   ├── 📁 signup/              # Page d'inscription
+│   ├── 📁 about/               # Page d'information sur RAG
+│   ├── 📄 layout.tsx           # Layout principal de l'application
+│   └── 📄 page.tsx             # Page d'accueil
+│
+├── 📁 components/              # Composants React réutilisables
+│   ├── 📁 dashboard/           # Composants spécifiques au tableau de bord
+│   │   ├── 📄 chat-history.tsx     # Historique des conversations
+│   │   ├── 📄 chat-interface.tsx   # Interface de chat principale
+│   │   ├── 📄 file-upload.tsx      # Composant de téléchargement de fichiers
+│   │   └── 📄 layout.tsx           # Layout du tableau de bord
+│   └── 📁 ui/                  # Composants UI réutilisables (shadcn/ui)
+│
+├── 📁 lib/                     # Utilitaires et services
+│   ├── 📄 api-service.ts       # Service pour communiquer avec l'API
+│   ├── 📄 auth.ts              # Fonctions d'authentification
+│   ├── 📄 mongodb.ts           # Configuration et connexion MongoDB
+│   ├── 📁 models/              # Modèles de données Mongoose
+│   └── 📄 utils.ts             # Fonctions utilitaires
+│
+├── 📁 public/                  # Fichiers statiques
+│
+├── 📁 backend/                 # Backend du modèle RAG
+│   ├── 📄 apptesto.py          # Fichier FastAPI du modèle
+│   └── 📄 requirements.txt     # Fichier des bibliothèques
+│
+└── 📄 .env.local               # Variables d'environnement locales
+
 ## 🚀 Installation et configuration
 
 ### Prérequis
