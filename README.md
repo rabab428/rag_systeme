@@ -84,10 +84,10 @@ RAGBot est une application web moderne qui permet aux utilisateurs d'interagir a
 1. **Cloner le dépôt**
    
     \`\`\`bash
-    git clone https://github.com/rabab428/rag_systeme.git
-    cd rag-chatbot
+     git clone https://github.com/rabab428/rag_systeme.git
+     cd rag-chatbot
    
-   \`\`\`
+\`\`\`
 
 3. **Installer les dépendances**
 
@@ -141,8 +141,8 @@ Installez les dépendances du projet avec l'une des commandes suivantes :
 5. **Installer et configurer le backend FastAPI**
    
     \`\`\`bash
-    cd backend
-    pip install -r requirements.txt
+     cd backend
+     pip install -r requirements.txt
    
    \`\`\`
 
@@ -152,18 +152,18 @@ Installez les dépendances du projet avec l'une des commandes suivantes :
    # Terminal 1 - Frontend Next.js
    
      \`\`\`bash
-     npm run dev
+      npm run dev
    
    # ou
 
      \`\`\`bash
-     yarn dev
+      yarn dev
    
    # Terminal 2 - Backend FastAPI
 
-     \```bash
-     cd backend
-     uvicorn apptesto:app --reload --port 8000
+      \`\`\`bash
+      cd backend
+      uvicorn apptesto:app --reload --port 8000
    
    \`\`\`
 
