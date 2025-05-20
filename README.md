@@ -3,6 +3,7 @@
 RAGBot est une application web moderne qui permet aux utilisateurs d'interagir avec leurs documents via un chatbot intelligent utilisant la technologie RAG (Retrieval-Augmented Generation). Cette application combine la puissance des grands modèles de langage (LLM) avec une recherche précise dans vos propres documents pour fournir des réponses contextuelles et pertinentes.
 
 ![!\[RAGBot Screenshot\]("https://github.com/rabab428/rag_systeme/blob/main/rag-chatbot1/dashboard.png")](dashboard.png)
+![RAGBot Screenshot](https://github.com/rabab428/rag_systeme/raw/main/rag-chatbot1/dashboard.png)
 
 ## 🌟 Fonctionnalités
 
