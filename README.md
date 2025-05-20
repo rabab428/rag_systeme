@@ -87,7 +87,7 @@ RAGBot est une application web moderne qui permet aux utilisateurs d'interagir a
    cd rag-chatbot
    \`\`\`
 
-2. **Installer les dépendances frontend**
+2. **Installer les dépendances**
 
     
 ⚙️ Installer Ollama
@@ -99,8 +99,9 @@ Téléchargez Ollama depuis le site officiel :
 
 🚀 Lancer le service Ollama
 Dans un terminal, exécutez la commande suivante pour démarrer le service Ollama :
+
     \`\`\`bash
-   ollama serve
+     ollama serve
 
 🤖 Télécharger le modèle LLaMA 3.2
 
@@ -112,12 +113,17 @@ Dans un terminal, exécutez la commande suivante pour démarrer le service Ollam
      
 
 
-   \`\`\`bash
-   
-   npm install
-   # ou
-   yarn install
-   \`\`\`
+  ## 📦 Installation des dépendances front-end
+
+Installez les dépendances du projet avec l'une des commandes suivantes :
+
+```bash
+npm install
+
+# ou
+
+yarn install
+
 
    
 
