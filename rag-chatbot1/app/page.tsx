@@ -57,17 +57,7 @@ export default async function Home() {
       <footer className="container mx-auto py-6">
         <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-200 pt-6 text-sm text-slate-500 sm:flex-row">
           <p>© 2025 RAGBot. Tous droits réservés.</p>
-          <div className="flex gap-4">
-            <Link href="/privacy" className="hover:text-slate-900">
-              Confidentialité
-            </Link>
-            <Link href="/terms" className="hover:text-slate-900">
-              Conditions d'utilisation
-            </Link>
-            <Link href="/contact" className="hover:text-slate-900">
-              Contact
-            </Link>
-          </div>
+         
         </div>
       </footer>
     </div>

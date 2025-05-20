@@ -1,6 +1,6 @@
 import os
 import re
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query,  Request
 import shutil
 import tempfile
 import logging
@@ -15,18 +15,17 @@ from langchain.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_ollama import ChatOllama
 from langchain_core.runnables import RunnablePassthrough
-from langchain.retrievers.multi_query import MultiQueryRetriever
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Form
 import nltk
 nltk.download('averaged_perceptron_tagger')
 from datetime import datetime  
 import traceback
-from bson.binary import Binary  
 import base64
 import numpy as np
 from langdetect import detect
 from pydantic import BaseModel
 from typing import Dict, List, Optional
+from bson.binary import Binary  # ✅ à importer en haut de ton fichier
+from langchain.retrievers.multi_query import MultiQueryRetriever
 
 
 # Logger
@@ -102,10 +101,22 @@ def load_existing_vector_dbs():
             )
 
 
-from fastapi import Form  # ⬅️ Nécessaire pour récupérer user_id via POST
 
-from bson.binary import Binary  # ✅ à importer en haut de ton fichier
-from typing import List
+
+
+def generate_unique_filename(filename, user_id):
+    name, ext = os.path.splitext(filename)
+    i = 1
+    new_filename = filename
+    while docs_collection.find_one({"user_id": user_id, "filename": new_filename}):
+        new_filename = f"{name} ({i}){ext}"
+        i += 1
+    return new_filename
+
+
+
+
+
 
 @app.post("/upload_files/")
 async def upload_files(
@@ -136,7 +147,9 @@ async def upload_files(
         try:
             # 1. Sauvegarde temporaire
             temp_dir = tempfile.mkdtemp()
-            file_path = os.path.join(temp_dir, file.filename)
+            unique_filename = generate_unique_filename(file.filename, user_id)
+            file_path = os.path.join(temp_dir, unique_filename)
+
 
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(file.file, f)
@@ -202,8 +215,8 @@ async def upload_files(
 
 
 
-from typing import List
-from pydantic import BaseModel
+
+
 
 class FileInfo(BaseModel):
     filename: str
@@ -246,7 +259,7 @@ async def get_uploaded_filenames(user_id: str):
 
 
 
-from fastapi import Query
+
 
 @app.delete("/delete_file_vector/")
 async def delete_file_vector(user_id: str = Query(...), filename: str = Query(...)):
@@ -284,8 +297,8 @@ async def delete_file_vector(user_id: str = Query(...), filename: str = Query(..
 
 
 
-from pydantic import BaseModel
-from langdetect import detect
+
+
 
 # ✅ Request model
 class QuestionRequest(BaseModel):
