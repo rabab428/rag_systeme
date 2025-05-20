@@ -82,12 +82,12 @@ RAGBot est une application web moderne qui permet aux utilisateurs d'interagir a
 ### Installation
 
 1. **Cloner le dépôt**
-   
-    \`\`\`bash
-     git clone https://github.com/rabab428/rag_systeme.git
-     cd rag-chatbot
-   
-\`\`\`
+
+```bash
+git clone https://github.com/rabab428/rag_systeme.git
+cd rag-chatbot
+
+```
 
 3. **Installer les dépendances**
 
@@ -102,15 +102,17 @@ Téléchargez Ollama depuis le site officiel :
 🚀 Lancer le service Ollama
 Dans un terminal, exécutez la commande suivante pour démarrer le service Ollama :
 
-    \`\`\`bash
-     ollama serve
-
+   ```bash
+   ollama serve
+```
 🤖 Télécharger le modèle LLaMA 3.2
 
   Une fois Ollama installé, utilisez cette commande pour télécharger le modèle LLaMA 3.2 :
 
-        \`\`\`bash
-        ollama run llama3:latest
+   ```bash
+    ollama run llama3:latest
+```
+
   💡 Cette commande téléchargera automatiquement le modèle (~4GB) et le rendra prêt à l’emploi.
      
 
@@ -119,15 +121,14 @@ Dans un terminal, exécutez la commande suivante pour démarrer le service Ollam
 
 Installez les dépendances du projet avec l'une des commandes suivantes :
 
-    \`\`\`bash
+ ```bash
     npm install
-
+```
 # ou
 
-    \`\`\`bash
+   ```bash
     yarn install
-
- \`\`\`
+```
    
 
 4. **Configurer les variables d'environnement**
@@ -140,32 +141,35 @@ Installez les dépendances du projet avec l'une des commandes suivantes :
 
 5. **Installer et configurer le backend FastAPI**
    
-    \`\`\`bash
+    ```bash
      cd backend
      pip install -r requirements.txt
    
-   \`\`\`
+   ```
 
 7. **Lancer l'application**
    
    
    # Terminal 1 - Frontend Next.js
    
-     \`\`\`bash
+     ```bash
       npm run dev
-   
+     
+   ```
    # ou
 
-     \`\`\`bash
+     ```bash
       yarn dev
-   
+
+   ```
+     
    # Terminal 2 - Backend FastAPI
 
-      \`\`\`bash
+      ```bash
       cd backend
       uvicorn apptesto:app --reload --port 8000
    
-   \`\`\`
+   ```
 
 9. Ouvrez votre navigateur à l'adresse `http://localhost:3000`
 
