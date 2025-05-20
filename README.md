@@ -117,12 +117,12 @@ Dans un terminal, exécutez la commande suivante pour démarrer le service Ollam
 
 Installez les dépendances du projet avec l'une des commandes suivantes :
 
-`\`\`bash
+\`\`\`bash
  npm install
 
 # ou
 
-`\`\`bash
+\`\`\`bash
  yarn install
 
  \`\`\`
@@ -137,24 +137,33 @@ Installez les dépendances du projet avec l'une des commandes suivantes :
    \`\`\`
 
 5. **Installer et configurer le backend FastAPI**
+   
    \`\`\`bash
    cd backend
    pip install -r requirements.txt
    \`\`\`
 
-6. **Lancer l'application**
-   \`\`\`bash
+7. **Lancer l'application**
+   
+   
    # Terminal 1 - Frontend Next.js
+   
+   \`\`\`bash
    npm run dev
+   
    # ou
+
+   \`\`\`bash
    yarn dev
    
    # Terminal 2 - Backend FastAPI
+
+   \`\`\`bash
    cd backend
    uvicorn apptesto:app --reload --port 8000
    \`\`\`
 
-7. Ouvrez votre navigateur à l'adresse `http://localhost:3000`
+9. Ouvrez votre navigateur à l'adresse `http://localhost:3000`
 
 ## 📘 Guide d'utilisation
 
