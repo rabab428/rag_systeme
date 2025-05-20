@@ -117,13 +117,13 @@ Dans un terminal, exécutez la commande suivante pour démarrer le service Ollam
 
 Installez les dépendances du projet avec l'une des commandes suivantes :
 
-\`\`\`bash
- npm install
+   \`\`\`bash
+   npm install
 
 # ou
 
-\`\`\`bash
- yarn install
+    \`\`\`bash
+    yarn install
 
  \`\`\`
    
