@@ -117,13 +117,23 @@ rag-chatbot/
    \`\`\`
 
 2. **Installer les dépendances frontend**
+
+    
+   Installer Ollama
+      Téléchargez l'installateur depuis : https://ollama.com/download
+   Lancer le service Ollama
+      ollama serve
+   Télécharger le modèle LLaMA 3.2
+      ollama run llama3:latest
    \`\`\`bash
    npm install
    # ou
    yarn install
    \`\`\`
 
-3. **Configurer les variables d'environnement**
+   
+
+4. **Configurer les variables d'environnement**
    Créez un fichier `.env.local` à la racine du projet avec les variables suivantes :
    \`\`\`
    MONGODB_URI=mongodb://localhost:27017/ragbot
@@ -131,13 +141,13 @@ rag-chatbot/
    NEXT_PUBLIC_API_URL=http://localhost:8000
    \`\`\`
 
-4. **Installer et configurer le backend FastAPI**
+5. **Installer et configurer le backend FastAPI**
    \`\`\`bash
    cd backend
    pip install -r requirements.txt
    \`\`\`
 
-5. **Lancer l'application**
+6. **Lancer l'application**
    \`\`\`bash
    # Terminal 1 - Frontend Next.js
    npm run dev
@@ -149,7 +159,7 @@ rag-chatbot/
    uvicorn apptesto:app --reload --port 8000
    \`\`\`
 
-6. Ouvrez votre navigateur à l'adresse `http://localhost:3000`
+7. Ouvrez votre navigateur à l'adresse `http://localhost:3000`
 
 ## 📘 Guide d'utilisation
 
