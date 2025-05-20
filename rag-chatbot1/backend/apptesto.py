@@ -176,7 +176,7 @@ async def upload_files(
             # 4. Enregistrement dans MongoDB
             doc_data = {
                 "user_id": user_id,
-                "filename": file.filename,
+                "filename": unique_filename,
                 "text": text,
                 "file_data": file_binary,
                 "timestamp": datetime.now()
