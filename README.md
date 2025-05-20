@@ -34,38 +34,7 @@ RAGBot est une application web moderne qui permet aux utilisateurs d'interagir a
 
 ## 📁 Structure du projet
 
-\`\`\`
-rag-chatbot/
-├── app/                    # Dossiers et fichiers Next.js (App Router)
-│   ├── actions/            # Server Actions pour l'authentification et les utilisateurs
-│   ├── api/                # Routes API Next.js
-│   ├── dashboard/          # Pages du tableau de bord (chat, documents, paramètres)
-│   ├── login/              # Page de connexion
-│   ├── signup/             # Page d'inscription
-│   ├── about/              # Page d'information sur RAG
-│   ├── layout.tsx          # Layout principal de l'application
-│   └── page.tsx            # Page d'accueil
-├── components/             # Composants React réutilisables
-│   ├── dashboard/          # Composants spécifiques au tableau de bord
-│   │   ├── chat-history.tsx    # Historique des conversations
-│   │   ├── chat-interface.tsx  # Interface de chat principale
-│   │   ├── file-upload.tsx     # Composant de téléchargement de fichiers
-│   │   └── layout.tsx          # Layout du tableau de bord
-│   └── ui/                 # Composants UI réutilisables (shadcn/ui)
-├── lib/                    # Utilitaires et services
-│   ├── api-service.ts      # Service pour communiquer avec l'API
-│   ├── auth.ts             # Fonctions d'authentification
-│   ├── mongodb.ts          # Configuration et connexion MongoDB
-│   ├── models/             # Modèles de données Mongoose
-│   └── utils.ts            # Fonctions utilitaires
-├── public/                 # Fichiers statiques
-├── backend/             # backend du modèle RAG
-│   ├── apptesto.py     # fichier fastAPI du modèle 
-│   └── requirements.txt     # fichier des bibliothèques  
-└── .env.local              # Variables d'environnement locales
-\`\`\`
-
-
+```
 📁 rag-chatbot/
 
 ├── 📁 app/                      # Dossiers et fichiers Next.js (App Router)
@@ -100,6 +69,8 @@ rag-chatbot/
 │   └── 📄 requirements.txt     # Fichier des bibliothèques
 │
 └── 📄 .env.local               # Variables d'environnement locales
+```
+
 
 ## 🚀 Installation et configuration
 
@@ -119,13 +90,30 @@ rag-chatbot/
 2. **Installer les dépendances frontend**
 
     
-   Installer Ollama
-      Téléchargez l'installateur depuis : https://ollama.com/download
-   Lancer le service Ollama
-      ollama serve
-   Télécharger le modèle LLaMA 3.2
-      ollama run llama3:latest
+⚙️ Installer Ollama
+🔽 Télécharger l’installateur
+Téléchargez Ollama depuis le site officiel :
+
+👉 https://ollama.com/download
+
+
+🚀 Lancer le service Ollama
+Dans un terminal, exécutez la commande suivante pour démarrer le service Ollama :
+    \`\`\`bash
+   ollama serve
+
+🤖 Télécharger le modèle LLaMA 3.2
+
+  Une fois Ollama installé, utilisez cette commande pour télécharger le modèle LLaMA 3.2 :
+
+        \`\`\`bash
+        ollama run llama3:latest
+  💡 Cette commande téléchargera automatiquement le modèle (~4GB) et le rendra prêt à l’emploi.
+     
+
+
    \`\`\`bash
+   
    npm install
    # ou
    yarn install
