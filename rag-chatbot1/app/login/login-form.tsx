@@ -44,9 +44,7 @@ export default function LoginForm() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Mot de passe</Label>
-          <Link href="/forgot-password" className="text-xs text-slate-600 hover:text-slate-900">
-            Mot de passe oublié?
-          </Link>
+          
         </div>
         <Input id="password" name="password" type="password" required />
       </div>
