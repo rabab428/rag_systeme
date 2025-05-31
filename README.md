@@ -85,7 +85,7 @@ RAGBot est une application web moderne qui permet aux utilisateurs d'interagir a
 
 ```bash
 git clone https://github.com/rabab428/rag_systeme.git
-cd rag-chatbot
+cd rag_chatbot1
 
 ```
 
@@ -110,7 +110,7 @@ Dans un terminal, exécutez la commande suivante pour démarrer le service Ollam
   Une fois Ollama installé, utilisez cette commande pour télécharger le modèle LLaMA 3.2 :
 
    ```bash
-    ollama run llama3:latest
+    ollama run llama3.2:1b
 ```
 
   💡 Cette commande téléchargera automatiquement le modèle (~4GB) et le rendra prêt à l’emploi.
